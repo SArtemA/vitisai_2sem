@@ -3,11 +3,24 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
 import database, ml_model, data_fetcher
+from fastapi import FastAPI, Request, Depends
+import os
 
 app = FastAPI(title="Viticulture Predictor")
 templates = Jinja2Templates(directory="templates")
 
+
+
+
+
+@app.on_event("startup")
+async def startup_event():
+    # If the model doesn't exist, build it before the first user arrives
+    if not os.path.exists(ml_model.MODEL_PATH):
+        print("Startup: No model found. Initializing training...")
+        ml_model.train_model()
 
 class CoordinatesIn(BaseModel):
     lat: float
@@ -27,32 +40,33 @@ async def predict_page(request: Request):
 # --- BACKEND API ROUTES ---
 @app.get("/api/vineyards")
 def get_vineyards(db: Session = Depends(database.get_db)):
-    vineyards = db.query(database.Vineyard).all()
+    vineyards = db.query(database.VineyardFeature).all()
     return vineyards
 
 
 @app.post("/api/predict")
 def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
-    # 1. Fetch environmental data
     env_data = data_fetcher.fetch_environmental_data(coords.lat, coords.lon)
-
-    # 2. Predict using XGBoost
     is_suitable = ml_model.predict_suitability(env_data)
 
-    # 3. Save everything to Database for future model improvement
-    new_record = database.Vineyard(
+    new_record = database.VineyardFeature(
         lat=coords.lat,
         lon=coords.lon,
+        elevation_GEE_USGS_30m=env_data["elevation"],
+        elevation_GEE_USGS_30m_status=env_data["elevation_status"],
+        slope_GEE_USGS_30m=env_data["slope"],
+        slope_GEE_USGS_30m_status=env_data["slope_status"],
+        aspect_GEE_USGS_30m=env_data["aspect"],
+        aspect_GEE_USGS_30m_status=env_data["aspect_status"],
+        hillshade_GEE_USGS_30m=env_data["hillshade"],
+        hillshade_GEE_USGS_30m_status=env_data["hillshade_status"],
+        # SAVE NEW COLUMNS
         mid_year_temp=env_data["mid_year_temp"],
         precipitation=env_data["precipitation"],
-        frost_risk=env_data["frost_risk"],
-        elevation=env_data["elevation"],
         ndvi=env_data["ndvi"],
         ndwi=env_data["ndwi"],
         is_suitable=is_suitable
     )
     db.add(new_record)
     db.commit()
-    db.refresh(new_record)
-
     return {"suitable": is_suitable, "data_collected": env_data}

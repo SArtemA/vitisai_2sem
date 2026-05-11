@@ -1,45 +1,47 @@
-import xgboost as xgb
-import pandas as pd
-import numpy as np
-import os
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime
 
-MODEL_PATH = "xgboost_grape_model.json"
-
-
-def train_initial_model():
-    """Trains a synthetic model if one doesn't exist yet."""
-    # Synthetic data for initialization
-    np.random.seed(42)
-    n_samples = 200
-
-    # Features: temp (15-20C is good), precip, frost_risk, elevation, ndvi, ndwi
-    X = pd.DataFrame({
-        'mid_year_temp': np.random.uniform(10, 25, n_samples),
-        'precipitation': np.random.uniform(300, 1000, n_samples),
-        'frost_risk': np.random.uniform(0, 1, n_samples),
-        'elevation': np.random.uniform(50, 800, n_samples),
-        'ndvi': np.random.uniform(0.2, 0.8, n_samples),
-        'ndwi': np.random.uniform(-0.5, 0.5, n_samples)
-    })
-
-    # Simple logic to determine suitability for the dummy model
-    y = ((X['mid_year_temp'] > 14) & (X['mid_year_temp'] < 22) &
-         (X['frost_risk'] < 0.3) & (X['elevation'] < 500)).astype(int)
-
-    model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss')
-    model.fit(X, y)
-    model.save_model(MODEL_PATH)
-    print("Initial XGBoost model trained and saved.")
+SQLALCHEMY_DATABASE_URL = "sqlite:///./vineyards_v2.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
-def predict_suitability(features: dict) -> bool:
-    if not os.path.exists(MODEL_PATH):
-        train_initial_model()
+class VineyardFeature(Base):
+    __tablename__ = "vineyard_features"
 
-    model = xgb.XGBClassifier()
-    model.load_model(MODEL_PATH)
+    osm_id = Column(Integer, primary_key=True, index=True)
+    lat = Column(Float, nullable=False)
+    lon = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Convert dict to DataFrame
-    df = pd.DataFrame([features])
-    prediction = model.predict(df)
-    return bool(prediction[0])
+    # Terrain
+    elevation_GEE_USGS_30m = Column(Float)
+    elevation_GEE_USGS_30m_status = Column(String)
+    slope_GEE_USGS_30m = Column(Float)
+    slope_GEE_USGS_30m_status = Column(String)
+    aspect_GEE_USGS_30m = Column(Float)
+    aspect_GEE_USGS_30m_status = Column(String)
+    hillshade_GEE_USGS_30m = Column(Float)
+    hillshade_GEE_USGS_30m_status = Column(String)
+
+    # Climate/Vegetation
+    mid_year_temp = Column(Float)
+    precipitation = Column(Float)
+    ndvi = Column(Float)
+    ndwi = Column(Float)
+
+    is_suitable = Column(Boolean, default=True)  # Existing vineyards are true by default
+
+
+Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
