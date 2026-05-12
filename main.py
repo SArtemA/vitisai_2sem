@@ -20,7 +20,7 @@ async def startup_event():
     # If the model doesn't exist, build it before the first user arrives
     if not os.path.exists(ml_model.MODEL_PATH):
         print("Startup: No model found. Initializing training...")
-        ml_model.train_model()
+        # ml_model.train_model()
 
 class CoordinatesIn(BaseModel):
     lat: float

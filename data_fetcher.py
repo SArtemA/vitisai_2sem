@@ -2,11 +2,16 @@ import ee
 import requests
 import random
 
+import ee
+
 try:
-    ee.Initialize()
+    # Replace 'your-project-id' with your actual Google Cloud Project ID
+    ee.Initialize(project='pp-2-sem-grapes')
+    print("Google Earth Engine initialized successfully.")
     GEE_ACTIVE = True
 except Exception as e:
-    print("GEE not initialized. Using fallback public APIs.")
+    print(f"GEE Initialization failed: {e}")
+    print("Check if you have run 'earthengine authenticate' in your terminal.")
     GEE_ACTIVE = False
 
 

@@ -2,3 +2,7 @@
 /vineyards.db
 /db_manipulations.py
 /vineyard_features.db
+/test.py
+/generate_negatives.py
+/db_functions
+/db_backups

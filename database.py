@@ -2,9 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, 
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 
-# You might want to delete your old vineyards.db file before running this,
-# or change the name below so it creates a fresh database.
-SQLALCHEMY_DATABASE_URL = "sqlite:///./vineyard_features.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./vineyards_v2.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -19,6 +17,7 @@ class VineyardFeature(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Terrain
     elevation_GEE_USGS_30m = Column(Float)
     elevation_GEE_USGS_30m_status = Column(String)
     slope_GEE_USGS_30m = Column(Float)
@@ -28,13 +27,13 @@ class VineyardFeature(Base):
     hillshade_GEE_USGS_30m = Column(Float)
     hillshade_GEE_USGS_30m_status = Column(String)
 
-    # NEW COLUMNS
+    # Climate/Vegetation
     mid_year_temp = Column(Float)
     precipitation = Column(Float)
     ndvi = Column(Float)
     ndwi = Column(Float)
 
-    is_suitable = Column(Boolean, nullable=True)
+    is_suitable = Column(Boolean, default=True)  # Existing vineyards are true by default
 
 
 Base.metadata.create_all(bind=engine)
