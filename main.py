@@ -40,6 +40,7 @@ async def predict_page(request: Request):
 # --- BACKEND API ROUTES ---
 @app.get("/api/vineyards")
 def get_vineyards(db: Session = Depends(database.get_db)):
+    # Query all records from the new V2 table
     vineyards = db.query(database.VineyardFeature).all()
     return vineyards
 

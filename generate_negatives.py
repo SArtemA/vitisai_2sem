@@ -43,16 +43,15 @@ def run_negative_generation():
     attempt_count = 0
 
     while success_count < TOTAL_SAMPLES:
-        attempt_count += 1
         lat, lon = get_random_unsuitable_coord()
 
         try:
-            # Fetch environmental data from Google Earth Engine
             env = data_fetcher.fetch_environmental_data(lat, lon)
 
-            # If the coordinates are in the middle of the ocean, GEE often returns 0 or None
-            # We skip those to ensure the model learns about LAND patterns
-            if env["elevation"] == 0 and env["ndvi"] == 0:
+            # --- IMPROVED SKIP LOGIC ---
+            # If GEE failed or hit an ocean, we skip it.
+            # We want land data that is BAD for grapes, not just empty water.
+            if env.get("elevation") == 0 and env.get("ndvi") == 0:
                 continue
 
             new_record = database.VineyardFeature(
@@ -70,20 +69,18 @@ def run_negative_generation():
                 precipitation=env["precipitation"],
                 ndvi=env["ndvi"],
                 ndwi=env["ndwi"],
-                is_suitable=False  # <--- MARKED AS BAD FOR GRAPES
+                is_suitable=False
             )
 
             db.add(new_record)
             db.commit()
-
             success_count += 1
             if success_count % 10 == 0:
                 print(f"✅ Generated {success_count}/{TOTAL_SAMPLES} samples...")
 
         except Exception as e:
-            # GEE sometimes throttles requests, we wait a second and continue
+            print(e)
             db.rollback()
-            time.sleep(1)
             continue
 
     db.close()

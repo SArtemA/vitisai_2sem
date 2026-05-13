@@ -2,16 +2,12 @@ import ee
 import requests
 import random
 
-import ee
-
 try:
-    # Replace 'your-project-id' with your actual Google Cloud Project ID
+    # Replace with your actual project ID
     ee.Initialize(project='pp-2-sem-grapes')
-    print("Google Earth Engine initialized successfully.")
     GEE_ACTIVE = True
 except Exception as e:
-    print(f"GEE Initialization failed: {e}")
-    print("Check if you have run 'earthengine authenticate' in your terminal.")
+    print(f"GEE Not Active: {e}")
     GEE_ACTIVE = False
 
 
@@ -22,35 +18,34 @@ def fetch_environmental_data(lat: float, lon: float) -> dict:
         except Exception as e:
             print(f"GEE Fetch failed: {e}. Falling back...")
             return _fetch_from_public_apis(lat, lon)
-    else:
-        return _fetch_from_public_apis(lat, lon)
+    return _fetch_from_public_apis(lat, lon)
 
 
 def _fetch_from_gee(lat: float, lon: float) -> dict:
     point = ee.Geometry.Point([lon, lat])
 
-    # 1. Terrain Data (SRTM)
+    # 1. Terrain
     dem = ee.Image('USGS/SRTMGL1_003')
     terrain = ee.Terrain.products(dem)
-    t_data = terrain.sample(point, 30).first().getInfo()['properties']
+    t_info = terrain.sample(point, 30).first().getInfo()
 
-    # 2. Climate Data (TerraClimate - Average for 2023)
-    climate = ee.ImageCollection('IDAHO_EPSCOR/TERRACLIMATE') \
-        .filterDate('2023-01-01', '2023-12-31').mean()
-    # tmmx is Max Temp, scaled by 0.1
-    c_data = climate.sample(point, 30).first().getInfo()['properties']
+    # Check if point is in ocean/no-data zone
+    if not t_info: raise ValueError("No terrain data at these coordinates (Ocean?)")
+    t_data = t_info['properties']
 
-    # 3. Satellite Imagery (Landsat 8 - Summer 2023 for NDVI)
-    l8 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
-        .filterBounds(point).filterDate('2023-06-01', '2023-09-01').median()
+    # 2. Climate
+    climate = ee.ImageCollection('IDAHO_EPSCOR/TERRACLIMATE').filterDate('2023-01-01', '2023-12-31').mean()
+    c_info = climate.sample(point, 30).first().getInfo()
+    c_data = c_info['properties'] if c_info else {}
 
-    # Calculate NDVI: (NIR - Red) / (NIR + Red) -> (B5 - B4)
+    # 3. Satellites
+    l8 = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2').filterBounds(point).filterDate('2023-06-01',
+                                                                                     '2023-09-01').median()
     ndvi_img = l8.normalizedDifference(['SR_B5', 'SR_B4'])
-    # Calculate NDWI: (Green - NIR) / (Green + NIR) -> (B3 - B5)
     ndwi_img = l8.normalizedDifference(['SR_B3', 'SR_B5'])
 
-    ndvi_val = ndvi_img.sample(point, 30).first().getInfo()['properties']['nd']
-    ndwi_val = ndwi_img.sample(point, 30).first().getInfo()['properties']['nd']
+    ndvi_info = ndvi_img.sample(point, 30).first().getInfo()
+    ndwi_info = ndwi_img.sample(point, 30).first().getInfo()
 
     return {
         "elevation": t_data.get('elevation', 0.0),
@@ -61,26 +56,26 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
         "aspect_status": "GEE_SUCCESS",
         "hillshade": t_data.get('hillshade', 0.0),
         "hillshade_status": "GEE_SUCCESS",
-        # New climate/sat data
-        "mid_year_temp": c_data.get('tmmx', 0.0) * 0.1,
-        "precipitation": c_data.get('pr', 0.0),
-        "ndvi": ndvi_val,
-        "ndwi": ndwi_val
+        "mid_year_temp": c_data.get('tmmx', 0.0) * 0.1 if 'tmmx' in c_data else 0.0,
+        "precipitation": c_data.get('pr', 0.0) if 'pr' in c_data else 0.0,
+        "ndvi": ndvi_info['properties']['nd'] if ndvi_info else 0.0,
+        "ndwi": ndwi_info['properties']['nd'] if ndwi_info else 0.0
     }
 
-def _fetch_from_public_apis(lat: float, lon: float) -> dict:
-    """Fallback if GEE is not authenticated."""
-    # Open-Meteo elevation API fallback
-    elev_resp = requests.get(f"https://api.open-meteo.com/v1/elevation?latitude={lat}&longitude={lon}").json()
-    elevation = elev_resp.get('elevation', [0])[0]
 
+def _fetch_from_public_apis(lat: float, lon: float) -> dict:
+    """Fallback ensuring ALL keys exist to prevent Crashes."""
     return {
-        "elevation": round(elevation, 2),
-        "elevation_status": "API_FALLBACK",
-        "slope": round(random.uniform(0, 15), 2),  # Mocked fallback
-        "slope_status": "MOCKED_FALLBACK",
-        "aspect": round(random.uniform(0, 360), 2),  # Mocked fallback
-        "aspect_status": "MOCKED_FALLBACK",
-        "hillshade": round(random.uniform(0, 255), 2),  # Mocked fallback
-        "hillshade_status": "MOCKED_FALLBACK"
+        "elevation": 0.0,
+        "elevation_status": "FAILED",
+        "slope": 0.0,
+        "slope_status": "FAILED",
+        "aspect": 0.0,
+        "aspect_status": "FAILED",
+        "hillshade": 0.0,
+        "hillshade_status": "FAILED",
+        "mid_year_temp": 0.0,
+        "precipitation": 0.0,
+        "ndvi": 0.0,
+        "ndwi": 0.0
     }
