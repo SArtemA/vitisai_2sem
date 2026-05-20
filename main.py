@@ -59,7 +59,7 @@ async def predict_page(request: Request):
     return templates.TemplateResponse(request=request, name="predict.html")
 
 # ---------- BACKEND API ROUTES ----------
-@app.get("/api/vineyards", response_model=List[VineyardOut])
+@app.get("/api/vineyards")#, response_model=List[VineyardOut])
 def get_vineyards(db: Session = Depends(database.get_db)):
     vineyards = db.query(database.VineyardFeature).all()
     return vineyards   # FastAPI автоматически сериализует благодаря response_model
