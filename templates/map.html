@@ -11,8 +11,8 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="m-0 text-dark">Vineyard Analysis Map</h2>
-    <span class="badge bg-secondary" id="count-badge">Loading points...</span>
+    <h2 class="m-0 text-dark">Карта анализа виноградников</h2>
+    <span class="badge bg-secondary" id="count-badge">Загрузка точек...</span>
 </div>
 
 <div id="map-wrapper">
@@ -32,7 +32,7 @@
         .then(response => response.json())
         .then(data => {
             console.log("Data received from API:", data); // DEBUG: Check browser console
-            document.getElementById('count-badge').innerText = data.length + " points found";
+            document.getElementById('count-badge').innerText = data.length + " точек найдено";
 
             data.forEach(v => {
                 // IMPORTANT: Ensure we match the SQLAlchemy column names exactly
@@ -46,7 +46,7 @@
                 let ndvi = v.ndvi || 0;
 
                 let color = is_suitable ? "#28a745" : "#dc3545";
-                let status = is_suitable ? "Suitable (Vineyard)" : "Not Suitable (Negative)";
+                let status = is_suitable ? "Подходящий (виноградник)" : "Не подходит (отрицательный результат)";
 
                 // Create the marker
                 let marker = L.circleMarker([lat, lon], {
@@ -63,9 +63,9 @@
                             <b>${status}</b>
                         </h6>
                         <table class="table table-sm table-borderless mb-0" style="font-size: 12px;">
-                            <tr><td><b>Elev:</b></td><td>${elev.toFixed(1)}m</td></tr>
-                            <tr><td><b>Slope:</b></td><td>${slope.toFixed(1)}°</td></tr>
-                            <tr><td><b>Temp:</b></td><td>${temp.toFixed(1)}°C</td></tr>
+                            <tr><td><b>Высота над уровнем моря:</b></td><td>${elev.toFixed(1)}m</td></tr>
+                            <tr><td><b>Уклон:</b></td><td>${slope.toFixed(1)}°</td></tr>
+                            <tr><td><b>Температура:</b></td><td>${temp.toFixed(1)}°C</td></tr>
                             <tr><td><b>NDVI:</b></td><td>${ndvi.toFixed(2)}</td></tr>
                         </table>
                     </div>
