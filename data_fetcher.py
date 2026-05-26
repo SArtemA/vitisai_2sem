@@ -1,10 +1,14 @@
 import ee
 import requests
 import random
+import os
+from dotenv import load_dotenv, find_dotenv
 
 try:
     # Replace with your actual project ID
-    ee.Initialize(project='pp-2-sem-grapes')
+    # ee.Initialize(project='pp-2-sem-grapes')
+    load_dotenv(find_dotenv())
+    ee.Initialize(project=os.getenv('GEE_PROJECT_ID'))
     GEE_ACTIVE = True
 except Exception as e:
     print(f"GEE Not Active: {e}")
