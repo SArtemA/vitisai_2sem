@@ -76,6 +76,6 @@ if __name__ == "__main__":
     csv_to_kml_sampled(
         csv_filename="output_polygons.csv",
         kml_filename="output.kml",
-        sample_percent=1.0,  # Берём четверть точек
-        seed=1,  # Любое целое число для фиксации случайности
+        sample_percent=0.02,
+        seed=1
     )
