@@ -7,3 +7,4 @@
 **/__pycache__
 
 # Датасет
+datasets/find_negativ/osm_pbf/geofiles/*
