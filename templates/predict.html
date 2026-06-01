@@ -1,152 +1,215 @@
 {% extends "base.html" %}
 
 {% block extra_head %}
-<!-- Include Leaflet CSS & JS for the interactive map -->
+<!-- Leaflet.js for Interactive Map Picker -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-    /* Styling for the picker map to ensure it expands and looks good */
     #picker-map {
         flex: 1;
-        min-height: 400px;
+        min-height: 450px;
         width: 100%;
-        border-radius: 8px;
+        border-radius: 12px;
         border: 2px solid #dee2e6;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        cursor: crosshair; /* Changes cursor to indicate clicking */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        cursor: crosshair;
     }
+    .result-card {
+        display: none;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    .variety-rank-item {
+        transition: transform 0.2s;
+    }
+    .variety-rank-item:hover {
+        transform: scale(1.02);
+    }
+    .metric-label { font-weight: 600; color: #495057; font-size: 0.85rem; }
+    .metric-value { font-family: 'Courier New', Courier, monospace; font-weight: bold; color: #212529; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row flex-grow-1 align-items-stretch mt-2 w-100 m-0">
+<div class="row g-4 flex-grow-1">
 
-    <!-- Left Column: Interactive Map -->
-    <div class="col-12 col-lg-7 mb-4 mb-lg-0 d-flex flex-column px-2 px-lg-3">
-        <h4 class="mb-3 text-dark">1. Pick a Location</h4>
+    <!-- Left Column: Coordinate Picker -->
+    <div class="col-12 col-lg-7 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h4 class="text-dark m-0">1. ВЫБОР ЛОКАЦИИ</h4>
+            <span class="badge bg-primary px-3 py-2">ДЛЯ ВЫБОРА КООРДИНАТ, НАЖМИ НА КАРТУ</span>
+        </div>
         <div id="picker-map"></div>
-        <div class="text-muted mt-2 small">
-            <strong>Tip:</strong> Click anywhere on the map to automatically fill in the coordinates.
+        <div class="mt-2 text-muted small">
+            <i class="bi bi-info-circle"></i> ДЛЯ БОЛЬШЕЙ ТОЧНОСТИ ИСПОЛЬЗУЙТЕ ЗУМ.
         </div>
     </div>
 
-    <!-- Right Column: Form & Results -->
-    <div class="col-12 col-lg-5 d-flex flex-column px-2 px-lg-3">
-        <h4 class="mb-3 text-dark">2. Analyze Suitability</h4>
-        <div class="card shadow-lg border-0 rounded-lg">
-            <div class="card-header bg-primary text-white text-center py-3">
-                <h5 class="mb-0">Coordinates</h5>
-            </div>
+    <!-- Right Column: Controls & AI Analysis -->
+    <div class="col-12 col-lg-5 d-flex flex-column">
+        <h4 class="text-dark mb-3">2. АНАЛИЗ</h4>
+
+        <!-- Input Form -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
             <div class="card-body p-4">
                 <form id="predictForm">
-                    <div class="row">
-                        <div class="col-6 mb-4">
-                            <label class="form-label fw-bold">Latitude</label>
-                            <input type="number" step="any" class="form-control" id="lat" required placeholder="e.g., 44.8016">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Широта</label>
+                            <input type="number" step="any" class="form-control form-control-lg bg-light" id="lat" required readonly placeholder="0.0000">
                         </div>
-                        <div class="col-6 mb-4">
-                            <label class="form-label fw-bold">Longitude</label>
-                            <input type="number" step="any" class="form-control" id="lon" required placeholder="e.g., -0.6040">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Долгота</label>
+                            <input type="number" step="any" class="form-control form-control-lg bg-light" id="lon" required readonly placeholder="0.0000">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow-sm">Analyze & Predict</button>
+                    <button type="submit" id="submitBtn" class="btn btn-dark btn-lg w-100 mt-4 fw-bold shadow-sm py-3" disabled>
+                        АНАЛИЗИРОВАТЬ КООРДИНАТЫ
+                    </button>
                 </form>
+            </div>
+        </div>
 
-                <div id="resultBox" class="mt-4 p-3 rounded" style="display: none; background-color: #f8f9fa; border: 1px solid #dee2e6;">
-                    <h4 id="predictionResult" class="text-center mb-3"></h4>
-                    <hr>
-                    <h6 class="text-muted fw-bold mb-2">Collected Environmental Data:</h6>
-                    <ul class="list-group list-group-flush" id="dataList">
-                        <!-- Data will be injected here -->
-                    </ul>
+        <!-- Result Section (Two-Gate Display) -->
+        <div id="resultBox" class="result-card shadow-lg bg-white">
+            <!-- Header (Suitability Status) -->
+            <div id="statusHeader" class="p-3 text-center">
+                <h4 id="predictionTitle" class="m-0 fw-bold"></h4>
+            </div>
+
+            <div class="p-4">
+                <!-- Gate 2: Variety Rankings (Visible only if suitable) -->
+                <div id="varietySection" style="display: none;">
+                    <h6 class="text-uppercase fw-bold text-muted small mb-3">РЕКОМЕНДАЦИИ ПО СОРТУ ВИНОГРАДА<br>
+                    (от более подходящего, к менее подходящему)</h6>
+                    <div id="varietyList" class="list-group list-group-flush mb-4">
+                        <!-- Rankings injected here -->
+                    </div>
+                </div>
+
+                <!-- Environmental Data (Always visible) -->
+                <h6 class="text-uppercase fw-bold text-muted small mb-3 border-top pt-3">УСЛОВИЯ ОКРУЖАЮЩЕЙ СРЕДЫ</h6>
+                <div id="envMetrics" class="row g-2">
+                    <!-- Metrics injected here -->
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 
 <script>
-    // --- MAP INITIALIZATION ---
-    // Start centered on Europe (a famous wine region)
-    var map = L.map('picker-map').setView([45.0, 5.0], 4);
-
+    // --- 1. Map Setup ---
+    const map = L.map('picker-map').setView([45.0, 5.0], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap'
+        attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    var currentMarker = null;
+    let currentMarker = null;
 
-    // --- MAP CLICK EVENT ---
     map.on('click', function(e) {
-        var lat = e.latlng.lat.toFixed(6);
-        var lon = e.latlng.lng.toFixed(6);
+        const lat = e.latlng.lat.toFixed(6);
+        const lon = e.latlng.lng.toFixed(6);
 
-        // Update the input fields
         document.getElementById('lat').value = lat;
         document.getElementById('lon').value = lon;
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('submitBtn').classList.replace('btn-dark', 'btn-primary');
 
-        // Place or move the marker
         if (currentMarker) {
             currentMarker.setLatLng(e.latlng);
         } else {
             currentMarker = L.marker(e.latlng).addTo(map);
         }
 
-        // Hide previous results if user picks a new location
+        // Reset UI
         document.getElementById('resultBox').style.display = 'none';
     });
 
-    // --- FORM SUBMISSION ---
+    // --- 2. Prediction Logic ---
     document.getElementById('predictForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const btn = document.querySelector('button');
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing Data...`;
-        btn.disabled = true;
+        const btn = document.getElementById('submitBtn');
+        const resultBox = document.getElementById('resultBox');
+        const header = document.getElementById('statusHeader');
+        const title = document.getElementById('predictionTitle');
+        const varietySection = document.getElementById('varietySection');
+        const varietyList = document.getElementById('varietyList');
+        const envMetrics = document.getElementById('envMetrics');
 
-        const lat = document.getElementById('lat').value;
-        const lon = document.getElementById('lon').value;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ДАННЫЕ ОБРАБАТЫВАЮТСЯ...`;
+        btn.disabled = true;
 
         try {
             const response = await fetch('/api/predict', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lat: parseFloat(lat), lon: parseFloat(lon) })
+                body: JSON.stringify({
+                    lat: parseFloat(document.getElementById('lat').value),
+                    lon: parseFloat(document.getElementById('lon').value)
+                })
             });
 
-            const result = await response.json();
-
-            const resultBox = document.getElementById('resultBox');
-            const title = document.getElementById('predictionResult');
-            const list = document.getElementById('dataList');
-
+            const data = await response.json();
             resultBox.style.display = 'block';
 
-            if (result.suitable) {
-                title.innerHTML = "🍇 Excellent! Land is SUITABLE.";
-                title.className = "text-success text-center mb-3";
-                resultBox.style.borderColor = "#28a745";
-                if(currentMarker) currentMarker.bindPopup("<b>Suitable</b>").openPopup();
+            // --- GATE 1: CHECK SUITABILITY ---
+            if (data.suitable) {
+                header.className = "p-3 text-center bg-success text-white";
+                title.innerHTML = "🍇 МЕСТНОСТЬ ПОДХОДИТ ДЛЯ ВИНОДЕЛИЯ";
+                resultBox.style.borderColor = "#198754";
+
+                // --- GATE 2: DISPLAY VARIETY RANKINGS ---
+                varietySection.style.display = 'block';
+                varietyList.innerHTML = data.recommendations.map((item, idx) => `
+                    <div class="list-group-item variety-rank-item d-flex justify-content-between align-items-center border-start-0 border-end-0 py-3">
+                        <div>
+                            <span class="text-muted fw-bold me-2">#${idx + 1}</span>
+                            <span class="fw-bold text-dark">${item.grape}</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div class="progress me-3" style="width: 100px; height: 8px;">
+                                <div class="progress-bar bg-success" style="width: ${item.score}%"></div>
+                            </div>
+                            <span class="badge bg-success-subtle text-success rounded-pill px-3">${item.score}%</span>
+                        </div>
+                    </div>
+                `).join('');
+
             } else {
-                title.innerHTML = "❌ Poor conditions. NOT SUITABLE.";
-                title.className = "text-danger text-center mb-3";
+                header.className = "p-3 text-center bg-danger text-white";
+                title.innerHTML = "❌ НЕПОДХОДЯЩИЕ УСЛОВИЯ ДЛЯ ВИНОДЕЛИЯ";
                 resultBox.style.borderColor = "#dc3545";
-                if(currentMarker) currentMarker.bindPopup("<b>Not Suitable</b>").openPopup();
+                varietySection.style.display = 'none';
             }
 
-            list.innerHTML = `
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Mid-Year Temp:</b> <span>${result.data_collected.mid_year_temp} °C</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Precipitation:</b> <span>${result.data_collected.precipitation} mm</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Elevation:</b> <span>${result.data_collected.elevation} m</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Frost Risk:</b> <span>${result.data_collected.frost_risk}</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>NDVI:</b> <span>${result.data_collected.ndvi}</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>NDWI:</b> <span>${result.data_collected.ndwi}</span></li>
-            `;
-        } catch (error) {
-            alert("An error occurred while fetching predictions.");
+            // --- DISPLAY METRICS ---
+            const m = data.data_collected;
+            const metrics = [
+                { label: 'Высота', val: m.elevation.toFixed(0) + ' m' },
+                { label: 'Уклон', val: m.slope.toFixed(1) + '°' },
+                { label: 'Средняя температура за год', val: m.mid_year_temp.toFixed(1) + ' °C' },
+                { label: 'Осадки', val: m.precipitation.toFixed(0) + ' mm' },
+                { label: 'Нормализованный вегетационный индекс', val: m.ndvi.toFixed(2) },
+                { label: 'Нормализованный разностный водный индекс', val: m.ndwi.toFixed(2) }
+            ];
+
+            envMetrics.innerHTML = metrics.map(met => `
+                <div class="col-6">
+                    <div class="p-2 border rounded-3 bg-light text-center">
+                        <div class="metric-label">${met.label}</div>
+                        <div class="metric-value">${met.val}</div>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            alert("Error communicating with AI server.");
+            console.error(err);
         } finally {
-            btn.innerText = "Analyze & Predict";
+            btn.innerHTML = `АНАЛИЗИРОВАТЬ КООРДИНАТЫ`;
             btn.disabled = false;
         }
     });

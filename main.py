@@ -13,9 +13,11 @@ import data_fetcher
 app = FastAPI(title="Viticulture Predictor")
 templates = Jinja2Templates(directory="templates")
 
+variety_model = None
 # ---------- Событие запуска ----------
 @app.on_event("startup")
 async def startup_event():
+    global variety_model
     """При старте пытаемся загрузить модель, но не обучаем её."""
     try:
         ml_model.load_model_if_exists()
@@ -23,9 +25,15 @@ async def startup_event():
             print("ПРЕДУПРЕЖДЕНИЕ: Модель не найдена. Предсказания будут недоступны.")
         else:
             print("Модель успешно загружена.")
+
     except Exception as e:
         print(f"Ошибка при загрузке модели: {e}")
         # Приложение продолжит работать, но /api/predict будет возвращать ошибку
+    try:
+        variety_model = ml_model.GrapeXGBClassifier()
+    except Exception as var_m_e:
+        print('Ошибка при загрузке модели:', 'var_m_e', var_m_e)
+        print("ПРЕДУПРЕЖДЕНИЕ: Модель не найдена. Рекомендации будут недоступны.")
 
 # ---------- Модели данных ----------
 class CoordinatesIn(BaseModel):
@@ -85,6 +93,25 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка предсказания: {e}")
 
+    recommendations = []
+    try:
+
+
+        # 3. Gate 2: ONLY if suitable, run the variety ranking model
+        if is_suitable:
+            print("Land is suitable. Calculating variety rankings...")
+            if variety_model is not None:
+                recommendations = variety_model.predict(env_data)
+                print(recommendations)
+            else:
+                print('Не удалось получить рекомендации')
+        else:
+            print("Land is unsuitable. Skipping variety analysis.")
+
+    except Exception as recommend_e:
+        print('recommend_e', recommend_e)
+
+
     # 4. Сохраняем запрос в БД
     new_record = database.VineyardFeature(
         lat=coords.lat,
@@ -106,4 +133,8 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
     db.add(new_record)
     db.commit()
 
-    return {"suitable": is_suitable, "data_collected": env_data}
+    return {
+        "suitable": is_suitable,
+        "data_collected": env_data,
+        "recommendations": recommendations  # Will be empty if unsuitable
+    }
