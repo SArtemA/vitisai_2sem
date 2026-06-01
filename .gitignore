@@ -8,3 +8,9 @@
 
 # Датасет
 datasets/find_negativ/osm_pbf/geofiles/*
+datasets/find_negativ/**/*.csv
+datasets/find_negativ/**/*.kml
+
+datasets/add_features/data/*.csv
+datasets/add_features/data/*.geojson
+datasets/add_features/data/*.db

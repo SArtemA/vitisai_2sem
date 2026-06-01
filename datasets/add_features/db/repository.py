@@ -43,7 +43,15 @@ def insert_points(points, db_path, table_name):
             conn.close()
 
 
-def get_row_by_status(db_path, cols_filter, status='pending', AND_or_OR="AND", limit=1000):
+def get_row_by_status(
+        db_path,
+        table_name: str,
+        cols_filter,
+        status='pending',
+        AND_or_OR="AND",
+        limit=1000,
+        random_order=False
+    ):
     """
     Функция для получения osm_id, lat, lon если "cols_filter" в статусе {status}.
 
@@ -51,9 +59,10 @@ def get_row_by_status(db_path, cols_filter, status='pending', AND_or_OR="AND", l
         db_path: Путь к БД.
         cols_filter: Колонки которые надо првоерить, на вход либо str, либо list[str, str, ...].
         limit=1000: Лимит вывода значений.
+        random_order=False: Включение случайного порядка строк.
 
     Returns:
-        list[osm_id, lat, lon].
+        list[osm_id, lat, lon]?.
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -63,16 +72,31 @@ def get_row_by_status(db_path, cols_filter, status='pending', AND_or_OR="AND", l
     else:
         cols_filter = list(dict.fromkeys(cols_filter))
 
+    if isinstance(status, str):
+        status = [status]
+    else:
+        status = list(dict.fromkeys(status))
+
+    if len(cols_filter) != len(status):
+        raise ValueError(
+            f"Количество фильтров ({len(cols_filter)}) не совпадает "
+            f"с количеством статусов ({len(status)})."
+        )
+
     for i in range(len(cols_filter)):
         if not cols_filter[i].endswith('_status'):
             cols_filter[i] = cols_filter[i] + '_status'
 
-    conditions = f" {AND_or_OR} ".join([f"{col} = '{status}'" for col in cols_filter])
+    conditions = f" {AND_or_OR} ".join([f"{col} = '{stat}'" for col, stat in zip(cols_filter, status)])
+
+    # Динамически добавляем ORDER BY RANDOM() при True
+    order_clause = "ORDER BY RANDOM()" if random_order else ""
 
     query = f"""
         SELECT osm_id, lat, lon
-        FROM vineyard_features
+        FROM {table_name}
         WHERE {conditions}
+        {order_clause}
         LIMIT ?
     """
 
@@ -86,7 +110,8 @@ def get_row_by_status(db_path, cols_filter, status='pending', AND_or_OR="AND", l
 
 
 def update_vineyard_features(
-    db_path: str,
+    db_path,
+    table_name: str,
     id_in_db: Union[int, List[int]],
     features: Union[Dict, List[Dict]],
     status: str = 'done'
@@ -132,12 +157,12 @@ def update_vineyard_features(
                 params = []
 
                 for column, value in feat.items():
-                    if value == 'error':
+                    if value == 'error' or value == 'None' or value == 'NULL':
                         # При ошибке не меняем значение, только статус
                         set_clauses.append(f"{column}_status = ?")
                         params.append('error')
-                    elif value == 'NULL' or value is None:
-                        pass
+                    # elif value == 'NULL' or value is None:
+                    #     pass
                     else:
                         set_clauses.append(f"{column} = ?")
                         set_clauses.append(f"{column}_status = ?")
@@ -151,7 +176,7 @@ def update_vineyard_features(
                 params.append(osm_id)
 
                 query = f"""
-                    UPDATE vineyard_features SET {', '.join(set_clauses)}
+                    UPDATE {table_name} SET {', '.join(set_clauses)}
                     WHERE osm_id = ?
                 """
 
@@ -166,7 +191,11 @@ def update_vineyard_features(
         # Здесь можно реализовать логику записи ошибки в лог или смены статуса на 'error'
 
 
-def reset_row_dynamically(db_path, osm_id) -> bool:
+def reset_row_dynamically(
+        db_path,
+        table_name:str,
+        osm_id
+    ) -> bool:
     """
     Автоматически находит все столбцы в таблице и обнуляет их,
     учитывая их тип (NULL для данных, 'pending' для статусов).
@@ -177,7 +206,6 @@ def reset_row_dynamically(db_path, osm_id) -> bool:
             cursor = conn.cursor()
 
             # Информация о столбцах таблицы
-            table_name = "vineyard_features"
             cursor.execute(f"PRAGMA table_info('{table_name}')")
             columns = cursor.fetchall()
 
@@ -214,54 +242,86 @@ def reset_row_dynamically(db_path, osm_id) -> bool:
         return False
 
 
-def create_feature_cols(db_path, col_name):
+def create_feature_cols(
+        db_path,
+        table_name,
+        col_name
+    ):
     """
-    Создание колонки для параметра и статуса 'panding'.
+    Создание колонки для параметра и статуса 'pending'.
+    !!! Колонки для статусов не подавать !!!.
     Если колонка с признаком есть, а со статусом нету, то она её создаст
 
     Args:
         db_path: Путь к БД.
         col_name: str или list[str, str, ...].
+        table_name: Имя таблицы в БД.
     """
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    # Используем контекстный менеджер, чтобы соединение всегда закрывалось корректно
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
 
-    if isinstance(col_name, str):
-        columns = [col_name]
-    else:
-        columns = col_name
+        # Приводим к единому типу list
+        columns_to_add = [col_name] if isinstance(col_name, str) else col_name
 
-    for col in columns:
+        # 1. Получаем список ВСЕХ колонок, которые СЕЙЧАС реально есть в таблице
         try:
-            # 1. Создаем основную колонку для данных (например, REAL для координат/высот)
-            # Если данные могут быть разными, можно использовать BLOB или оставить тип гибким
-            cursor.execute(f"ALTER TABLE vineyard_features ADD COLUMN {col} REAL")
-            print(f"Колонка '{col}' успешно добавлена.")
-        except sqlite3.OperationalError:
-            print(f"Колонка '{col}' уже существует.")
+            cursor.execute(f"PRAGMA table_info([{table_name}])")
+            # row[1] — это гарантированно текстовое имя колонки в SQLite
+            existing_columns = {row[1] for row in cursor.fetchall()}
+        except sqlite3.OperationalError as e:
+            print(f"Ошибка: Не удалось прочитать таблицу [{table_name}]: {e}")
+            return
 
-        try:
-            # 2. Создаем колонку статуса со значением 'pending' по умолчанию
+        # 2. Проверяем и добавляем только недостающие колонки
+        for col in columns_to_add:
             status_col = f"{col}_status"
-            cursor.execute(f"ALTER TABLE vineyard_features ADD COLUMN {status_col} TEXT DEFAULT 'pending'")
-            print(f"Колонка '{status_col}' успешно добавлена.")
-        except sqlite3.OperationalError:
-            print(f"Колонка '{status_col}' уже существует.")
 
-    conn.commit()
-    conn.close()
+            # Проверка и добавление основной колонки
+            if col not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} REAL")
+                    print(f"{table_name}: Колонка '{col}' успешно добавлена.")
+                except sqlite3.OperationalError as e:
+                    print(f"{table_name}: Ошибка при добавлении '{col}': {e}")
+            else:
+                print(f"{table_name}: Колонка '{col}' уже существует в БД (пропущено).")
+
+            # Проверка и добавление колонки статуса
+            if status_col not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {status_col} TEXT DEFAULT 'pending'")
+                    print(f"{table_name}: Колонка '{status_col}' успешно добавлена.")
+                except sqlite3.OperationalError as e:
+                    print(f"{table_name}: Ошибка при добавлении '{status_col}': {e}")
+            else:
+                print(f"{table_name}: Колонка '{status_col}' уже существует в БД (пропущено).")
 
 
-def delete_feature_cols(db_path, col_name):
+def delete_feature_cols(
+        db_path,
+        table_name,
+        col_name
+    ):
     """
     Удаляет колонку параметра и колонку его статуса.
 
     Args:
         db_path: Путь к БД.
+        table_name: Название таблицы.
         col_name: str или list[str] с названиями признаков.
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+
+    # 1. Получаем список ВСЕХ колонок, которые СЕЙЧАС реально есть в таблице
+    try:
+        cursor.execute(f"PRAGMA table_info([{table_name}])")
+        # row[1] — это гарантированно текстовое имя колонки в SQLite
+        existing_columns = {row[1] for row in cursor.fetchall()}
+    except sqlite3.OperationalError as e:
+        print(f"Ошибка: Не удалось прочитать таблицу [{table_name}]: {e}")
+        return
 
     # Приводим к списку
     columns = [col_name] if isinstance(col_name, str) else col_name
@@ -271,17 +331,103 @@ def delete_feature_cols(db_path, col_name):
         cols_to_remove = [col, f"{col}_status"]
 
         for target in cols_to_remove:
-            try:
-                # В SQLite нельзя удалить несколько колонок одним запросом
-                # и нельзя использовать параметры (?) для имен колонок
-                cursor.execute(f'ALTER TABLE vineyard_features DROP COLUMN "{target}"')
-                print(f"Колонка '{target}' успешно удалена.")
-            except sqlite3.OperationalError as e:
-                # Если колонки нет, SQLite выдаст ошибку — перехватываем её
-                print(f"Ошибка при удалении '{target}': {e}")
+            if target in existing_columns:
+                try:
+                    # В SQLite нельзя удалить несколько колонок одним запросом
+                    # и нельзя использовать параметры (?) для имен колонок
+                    cursor.execute(f'ALTER TABLE vineyard_features DROP COLUMN "{target}"')
+                    print(f"Колонка '{target}' успешно удалена.")
+                except sqlite3.OperationalError as e:
+                    # Если колонки нет, SQLite выдаст ошибку — перехватываем её
+                    print(f"Ошибка при удалении '{target}': {e}")
+            else:
+                print(f"В таблице '{table_name}' нету колонки '{target}'.")
 
     conn.commit()
     conn.close()
+
+
+def get_count_row(
+    db_path,
+    table_name: str
+    ) -> int:
+    """Возвращает общее кол-во строк."""
+    query = f"SELECT COUNT(*) FROM {table_name};"
+
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query)
+        result = cursor.fetchone()
+        return result[0] if result else 0
+
+
+def get_count_row_by_status(
+        db_path,
+        table_name: str,
+        cols_filter,
+        status='pending',
+        AND_or_OR="AND"
+    ):
+    """
+    Возвращает количество строк в таблице SQLite, удовлетворяющих условиям
+    статуса для заданных колонок.
+
+    Args:
+        db_path: Путь к БД.
+        table_name: Название таблицы.
+        cols_filter: Колонки которые надо проверить,
+            на вход либо str, либо list[str, str, ...].
+        status: Значение статуса для фильтрации (по умолчанию 'pending').
+        AND_or_OR: Логический оператор для объединения условий.
+            Допустимы только 'AND' или 'OR'.
+
+    Returns:
+        int: Количество найденных строк.
+    """
+    # Валидация логического оператора во избежание синтаксических ошибок SQL
+    AND_or_OR = AND_or_OR.upper().strip()
+    if AND_or_OR not in ("AND", "OR"):
+        raise ValueError("Параметр AND_or_OR должен быть равен 'AND' или 'OR'")
+
+    # Нормализация входных колонок и удаление дубликатов
+    if isinstance(cols_filter, str):
+        columns = [cols_filter]
+    else:
+        columns = list(dict.fromkeys(cols_filter))
+
+    if not columns:
+        return 0
+
+    # Формирование корректных имён колонок с суффиксом '_status'
+    processed_cols = []
+    for col in columns:
+        if not col.endswith("_status"):
+            col = col + "_status"
+        # Экранируем имя колонки двойными кавычками для безопасности SQLite
+        processed_cols.append(f'"{col.replace('"', '""')}"')
+
+    # Экранируем имя таблицы
+    safe_table_name = f'"{table_name.replace('"', '""')}"'
+
+    # Построение безопасного SQL-запроса с использованием плейсхолдеров '?'
+    conditions = f" {AND_or_OR} ".join([f"{col} = ?" for col in processed_cols])
+    query = f"""
+            SELECT COUNT(*)
+            FROM {safe_table_name}
+            WHERE {conditions}
+        """
+
+    # Подготавливаем список аргументов (статус дублируется под каждую колонку)
+    params = [status] * len(processed_cols)
+
+    # Выполнение запроса в безопасном контексте соединения
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        result = cursor.fetchone()
+
+        # Возвращаем само число (первый элемент кортежа), либо 0 если результат пустой
+        return result[0] if result else 0
 
 
 if __name__ == "__main__":
