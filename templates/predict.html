@@ -100,7 +100,6 @@
 </div>
 
 <script>
-    // --- 1. Map Setup ---
     const map = L.map('picker-map').setView([45.0, 5.0], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -124,11 +123,9 @@
             currentMarker = L.marker(e.latlng).addTo(map);
         }
 
-        // Reset UI
         document.getElementById('resultBox').style.display = 'none';
     });
 
-    // --- 2. Prediction Logic ---
     document.getElementById('predictForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
@@ -155,13 +152,11 @@
             const data = await response.json();
             resultBox.style.display = 'block';
 
-            // --- GATE 1: CHECK SUITABILITY ---
             if (data.suitable) {
                 header.className = "p-3 text-center bg-success text-white";
                 title.innerHTML = "🍇 МЕСТНОСТЬ ПОДХОДИТ ДЛЯ ВИНОДЕЛИЯ";
                 resultBox.style.borderColor = "#198754";
 
-                // --- GATE 2: DISPLAY VARIETY RANKINGS ---
                 varietySection.style.display = 'block';
                 varietyList.innerHTML = data.recommendations.map((item, idx) => `
                     <div class="list-group-item variety-rank-item d-flex justify-content-between align-items-center border-start-0 border-end-0 py-3">
@@ -185,7 +180,6 @@
                 varietySection.style.display = 'none';
             }
 
-            // --- DISPLAY METRICS ---
             const m = data.data_collected;
             const metrics = [
                 { label: 'Высота', val: m.elevation.toFixed(0) + ' m' },
@@ -193,7 +187,12 @@
                 { label: 'Средняя температура за год', val: m.mid_year_temp.toFixed(1) + ' °C' },
                 { label: 'Осадки', val: m.precipitation.toFixed(0) + ' mm' },
                 { label: 'Нормализованный вегетационный индекс', val: m.ndvi.toFixed(2) },
-                { label: 'Нормализованный разностный водный индекс', val: m.ndwi.toFixed(2) }
+                { label: 'Нормализованный разностный водный индекс', val: m.ndwi.toFixed(2) },
+                { label: 'Soil pH', val: m.soil_ph.toFixed(1) },
+                { label: 'Organic Carbon', val: m.soil_organic_carbon + ' g/kg' },
+                { label: 'Solar Rad', val: m.solar_radiation.toFixed(1) + ' MJ/m²' },
+                { label: 'Fire Risk (PDSI)', val: m.fire_risk.toFixed(1) },
+                { label: 'LAI', val: m.lai.toFixed(2) }
             ];
 
             envMetrics.innerHTML = metrics.map(met => `
