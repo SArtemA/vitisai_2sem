@@ -1,9 +1,9 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean, text, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 
-# Resolve path relative to this file to keep the db in the databases folder
+# Place the database file relative to this module
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'vineyards_v3.db')}"
 
@@ -36,15 +36,16 @@ class VineyardFeature(Base):
     precipitation = Column(Float)
     ndvi = Column(Float)
     ndwi = Column(Float)
-    # --- New GEE Parameters ---
+
+    # GEE Parameters
     solar_radiation = Column(Float)
     humidity = Column(Float)
     wind_speed = Column(Float)
-    wind_direction = Column(Float)
+    # wind_direction = Column(Float)
     evapotranspiration = Column(Float)
     evi = Column(Float)
     lai = Column(Float)
-    fractional_cover = Column(Float)
+    # fractional_cover = Column(Float)
     land_cover_type = Column(Integer)
     soil_ph = Column(Float)
     soil_organic_carbon = Column(Float)
@@ -53,7 +54,49 @@ class VineyardFeature(Base):
     is_suitable = Column(Boolean, default=True)
 
 
+# 1. Create table structure if it doesn't exist
 Base.metadata.create_all(bind=engine)
+
+
+# 2. Automatically apply missing column migrations to on-disk database
+def auto_migrate_schema():
+    inspector = inspect(engine)
+    table_name = "vineyard_features"
+
+    if table_name in inspector.get_table_names():
+        # Get columns that exist on disk
+        columns_on_disk = {col["name"] for col in inspector.get_columns(table_name)}
+        # Get columns declared in the SQLAlchemy class
+        columns_in_model = {col.key for col in VineyardFeature.__table__.columns}
+
+        missing_columns = columns_in_model - columns_on_disk
+
+        if missing_columns:
+            print(f"Schema mismatch detected in '{table_name}'. Synchronizing columns...")
+            with engine.begin() as conn:  # engine.begin() handles transaction commits automatically
+                for col_name in missing_columns:
+                    col_obj = VineyardFeature.__table__.columns[col_name]
+
+                    # Deduce column SQL type
+                    type_str = str(col_obj.type).upper()
+                    sql_type = "FLOAT"
+                    if "INT" in type_str:
+                        sql_type = "INTEGER"
+                    elif "BOOL" in type_str:
+                        sql_type = "BOOLEAN"
+                    elif "VARCHAR" in type_str or "STR" in type_str:
+                        sql_type = "VARCHAR"
+
+                    # Append missing column
+                    alter_statement = f'ALTER TABLE {table_name} ADD COLUMN "{col_name}" {sql_type};'
+                    conn.execute(text(alter_statement))
+                    print(f"  Added column: '{col_name}' ({sql_type})")
+
+
+try:
+    auto_migrate_schema()
+except Exception as e:
+    print(f"Auto-migration warning: {e}")
 
 
 def get_db():
