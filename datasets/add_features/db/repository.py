@@ -69,13 +69,13 @@ def get_row_by_status(
 
     if isinstance(cols_filter, str):
         cols_filter = [cols_filter]
-    else:
-        cols_filter = list(dict.fromkeys(cols_filter))
+    # else:
+    #     cols_filter = list(dict.fromkeys(cols_filter))
 
     if isinstance(status, str):
         status = [status]
-    else:
-        status = list(dict.fromkeys(status))
+    # else:
+    #     status = list(dict.fromkeys(status))
 
     if len(cols_filter) != len(status):
         raise ValueError(
@@ -335,7 +335,7 @@ def delete_feature_cols(
                 try:
                     # В SQLite нельзя удалить несколько колонок одним запросом
                     # и нельзя использовать параметры (?) для имен колонок
-                    cursor.execute(f'ALTER TABLE vineyard_features DROP COLUMN "{target}"')
+                    cursor.execute(f"ALTER TABLE [{table_name}] DROP COLUMN [{target}]")
                     print(f"Колонка '{target}' успешно удалена.")
                 except sqlite3.OperationalError as e:
                     # Если колонки нет, SQLite выдаст ошибку — перехватываем её
@@ -437,6 +437,7 @@ if __name__ == "__main__":
     db_folder_path.mkdir(exist_ok=True)
     db_name = 'vineyard_1.db'
     db_path = db_folder_path / db_name
+    print(db_path)
 
     # TEST get_row_by_status
     # ans = get_row_by_status(
@@ -453,7 +454,22 @@ if __name__ == "__main__":
     # create_feature_cols(db_path, "test")
 
     # TSET delete_feature_cols
-    # delete_feature_cols(db_path, "test")
+    delete_feature_cols(db_path,
+        'negative_features',
+        ['NDVI_phase1_2024',
+        'NDVI_phase2_2024',
+        'NDVI_phase3_2024',
+        'NDWI_phase2_2024',
+        'SAVI_phase2_2024',
+        'SR_B2_mean_2024',
+        'SR_B3_mean_2024',
+        'SR_B4_mean_2024',
+        'SR_B5_mean_2024',
+        'SR_B6_mean_2024',
+        'SR_B7_mean_2024',
+        'ST_B10_mean_2024',
+        'cloud_cover_phase2_2024']
+        )
 
     # TEST update_vineyard_features
     # id = 4812832
