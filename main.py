@@ -6,39 +6,39 @@ from sqlalchemy.orm import Session
 from typing import List
 import os
 
-import database
-import ml_model          # переписанный модуль, см. ниже
+from databases import database
+from models import ml_model
 import data_fetcher
 
 app = FastAPI(title="Viticulture Predictor")
 templates = Jinja2Templates(directory="templates")
 
 variety_model = None
-# ---------- Событие запуска ----------
+
+
 @app.on_event("startup")
 async def startup_event():
     global variety_model
-    """При старте пытаемся загрузить модель, но не обучаем её."""
     try:
         ml_model.load_model_if_exists()
         if ml_model.model is None:
             print("ПРЕДУПРЕЖДЕНИЕ: Модель не найдена. Предсказания будут недоступны.")
         else:
             print("Модель успешно загружена.")
-
     except Exception as e:
         print(f"Ошибка при загрузке модели: {e}")
-        # Приложение продолжит работать, но /api/predict будет возвращать ошибку
+
     try:
         variety_model = ml_model.GrapeXGBClassifier()
     except Exception as var_m_e:
-        print('Ошибка при загрузке модели:', 'var_m_e', var_m_e)
+        print('Ошибка при загрузке модели:', var_m_e)
         print("ПРЕДУПРЕЖДЕНИЕ: Модель не найдена. Рекомендации будут недоступны.")
 
-# ---------- Модели данных ----------
+
 class CoordinatesIn(BaseModel):
     lat: float
     lon: float
+
 
 class VineyardOut(BaseModel):
     id: int
@@ -55,39 +55,38 @@ class VineyardOut(BaseModel):
     is_suitable: bool | None
 
     class Config:
-        from_attributes = True  # чтобы работало с объектами SQLAlchemy
+        from_attributes = True
 
-# ---------- FRONTEND ROUTES ----------
+
 @app.get("/", response_class=HTMLResponse)
 async def map_page(request: Request):
     return templates.TemplateResponse(request=request, name="map.html")
+
 
 @app.get("/predict_page", response_class=HTMLResponse)
 async def predict_page(request: Request):
     return templates.TemplateResponse(request=request, name="predict.html")
 
-# ---------- BACKEND API ROUTES ----------
-@app.get("/api/vineyards")#, response_model=List[VineyardOut])
+
+@app.get("/api/vineyards")
 def get_vineyards(db: Session = Depends(database.get_db)):
     vineyards = db.query(database.VineyardFeature).all()
-    return vineyards   # FastAPI автоматически сериализует благодаря response_model
+    return vineyards
+
 
 @app.post("/api/predict")
 def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
-    # 1. Проверяем, загружена ли модель
     if ml_model.model is None:
         raise HTTPException(
             status_code=503,
             detail="Модель не обучена или не найдена. Запустите pipeline_vitis.py для обучения."
         )
 
-    # 2. Получаем экологические данные
     try:
         env_data = data_fetcher.fetch_environmental_data(coords.lat, coords.lon)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ошибка получения данных: {e}")
 
-    # 3. Предсказание
     try:
         is_suitable = ml_model.predict_suitability(env_data)
     except Exception as e:
@@ -95,9 +94,6 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
 
     recommendations = []
     try:
-
-
-        # 3. Gate 2: ONLY if suitable, run the variety ranking model
         if is_suitable:
             print("Land is suitable. Calculating variety rankings...")
             if variety_model is not None:
@@ -107,12 +103,9 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
                 print('Не удалось получить рекомендации')
         else:
             print("Land is unsuitable. Skipping variety analysis.")
-
     except Exception as recommend_e:
         print('recommend_e', recommend_e)
 
-
-    # 4. Сохраняем запрос в БД
     new_record = database.VineyardFeature(
         lat=coords.lat,
         lon=coords.lon,
@@ -128,6 +121,15 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
         precipitation=env_data["precipitation"],
         ndvi=env_data["ndvi"],
         ndwi=env_data["ndwi"],
+        solar_radiation=env_data["solar_radiation"],
+        humidity=env_data["humidity"],
+        wind_speed=env_data["wind_speed"],
+        soil_ph=env_data["soil_ph"],
+        soil_organic_carbon=env_data["soil_organic_carbon"],
+        fire_risk=env_data["fire_risk"],
+        evi=env_data["evi"],
+        lai=env_data["lai"],
+        land_cover_type=env_data["land_cover_type"],
         is_suitable=is_suitable
     )
     db.add(new_record)
@@ -136,5 +138,5 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
     return {
         "suitable": is_suitable,
         "data_collected": env_data,
-        "recommendations": recommendations  # Will be empty if unsuitable
+        "recommendations": recommendations
     }

@@ -9,7 +9,9 @@ import sys
 import json
 import multiprocessing
 from main import app  # IMPORTANT: Import the app directly instead of using a string
+import warnings
 
+warnings.filterwarnings('ignore')
 
 _HOST = '127.0.0.1'
 _PORT = 5459
