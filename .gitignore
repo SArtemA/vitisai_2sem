@@ -10,3 +10,5 @@
 /databases/vineyards_v2.db
 /_hlam/
 /_reannotate_ndwvi.py
+/_db_to_csv.py
+/models/trained_models_bin/
