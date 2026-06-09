@@ -18,3 +18,4 @@
 /models/trained_models_multi/target_names.joblib
 /annotated_grapes.csv
 /vineyards_v3.csv
+/.idea
