@@ -20,23 +20,20 @@ class VineyardFeature(Base):
     lon = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
     # Terrain
-    elevation_GEE_USGS_30m = Column(Float)
+    elevation = Column(Float)
     elevation_GEE_USGS_30m_status = Column(String)
-    slope_GEE_USGS_30m = Column(Float)
+    slope = Column(Float)
     slope_GEE_USGS_30m_status = Column(String)
-    aspect_GEE_USGS_30m = Column(Float)
+    aspect = Column(Float)
     aspect_GEE_USGS_30m_status = Column(String)
-    hillshade_GEE_USGS_30m = Column(Float)
+    hillshade = Column(Float)
     hillshade_GEE_USGS_30m_status = Column(String)
-
     # Climate/Vegetation
     mid_year_temp = Column(Float)
     precipitation = Column(Float)
     ndvi = Column(Float)
     ndwi = Column(Float)
-
     # GEE Parameters
     solar_radiation = Column(Float)
     humidity = Column(Float)
