@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 
 _HOST = '127.0.0.1'
 _PORT = 5459
-_LINK = f'http://{_HOST}:{_PORT}'
+_LINK = f'https://{_HOST}:{_PORT}'
 
 
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     except Exception as run_e:
         print('run_e', run_e)
     finally:
-        print('finally')
+        print('finally some rest')
         # try:
         #     shutil.rmtree(Path('tmp'), ignore_errors=True)
 
