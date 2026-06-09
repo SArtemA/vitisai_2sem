@@ -41,22 +41,6 @@ class CoordinatesIn(BaseModel):
     lon: float
 
 
-class VineyardOut(BaseModel):
-    id: int
-    lat: float
-    lon: float
-    elevation_GEE_USGS_30m: float | None
-    slope_GEE_USGS_30m: float | None
-    aspect_GEE_USGS_30m: float | None
-    hillshade_GEE_USGS_30m: float | None
-    mid_year_temp: float | None
-    precipitation: float | None
-    ndvi: float | None
-    ndwi: float | None
-    is_suitable: bool | None
-
-    class Config:
-        from_attributes = True
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -136,7 +120,8 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
         evi=env_data["evi"],
         lai=env_data["lai"],
         land_cover_type=env_data["land_cover_type"],
-        is_suitable=is_suitable
+        is_suitable=is_suitable,
+        evapotranspiration=env_data["evapotranspiration"],
     )
     db.add(new_record)
     db.commit()
