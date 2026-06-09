@@ -2,9 +2,6 @@
 /_annotate_grapes.py
 /_rebuild_to_v3.py
 /cleared_grapes_500.csv
-/models/trained_models/
-/models/xgboost_grape_model_scaler.pkl
-/models/xgboost_grape_model.json
 /databases/grapes_annotated.db
 /databases/vineyards_v3.db
 /databases/vineyards_v2.db
@@ -12,3 +9,12 @@
 /_reannotate_ndwvi.py
 /_db_to_csv.py
 /models/trained_models_bin/
+/models/trained_models_bin/xgboost_grape_model.json
+/models/trained_models_bin/xgboost_grape_model_scaler.pkl
+/models/trained_models_multi/
+/models/trained_models_multi/feature_names.joblib
+/models/trained_models_multi/multi_output_xgb_model.joblib
+/models/trained_models_multi/scaler.joblib
+/models/trained_models_multi/target_names.joblib
+/annotated_grapes.csv
+/vineyards_v3.csv
