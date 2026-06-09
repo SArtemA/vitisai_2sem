@@ -122,7 +122,7 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
         "humidity": humidity_k - 273.15,
         "solar_radiation": weather_data.get('surface_solar_radiation_downwards_sum', 0.0) / 1000000,
         "wind_speed": wind_speed,
-        "evapotranspiration": weather_data.get('total_evapotranspiration', 0.0) * -1000,
+        "evapotranspiration": weather_data.get('total_evaporation', 0.0) * 0.001,
         "evi": evi_val,
         "lai": lai_val,
         "land_cover_type": lc_val,
