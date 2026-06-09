@@ -100,6 +100,39 @@
 </div>
 
 <script>
+    // --- 2. Descriptive Mapping Translators ---
+    function getAspectDirection(deg) {
+        if (deg === undefined || deg === null) return 'N/A';
+        const d = (deg % 360 + 360) % 360;
+        if (d >= 337.5 || d < 22.5) return `Север (${d.toFixed(0)}°)`;
+        if (d >= 22.5 && d < 67.5) return `Северо-Восток (${d.toFixed(0)}°)`;
+        if (d >= 67.5 && d < 112.5) return `Восток (${d.toFixed(0)}°)`;
+        if (d >= 112.5 && d < 157.5) return `Юго-Восток (${d.toFixed(0)}°)`;
+        if (d >= 157.5 && d < 202.5) return `Юг (${d.toFixed(0)}°)`;
+        if (d >= 202.5 && d < 247.5) return `Юго-Запад (${d.toFixed(0)}°)`;
+        if (d >= 247.5 && d < 292.5) return `Запад (${d.toFixed(0)}°)`;
+        if (d >= 292.5 && d < 337.5) return `Северо-Запад (${d.toFixed(0)}°)`;
+        return `${d.toFixed(0)}°`;
+    }
+
+    function getLandCoverName(code) {
+        if (code === undefined || code === null) return 'N/A';
+        const mapping = {
+            10: "Лес",
+            20: "Кустарники",
+            30: "Луг",
+            40: "Сельхозугодья",
+            50: "Городская застройка",
+            60: "Разреженная растительность",
+            70: "Снег и лед",
+            80: "Водные объекты",
+            90: "Заболоченные земли",
+            95: "Мангры",
+            100: "Мох и лишайники"
+        };
+        return mapping[code] || `Неизвестный тип (${code})`;
+    }
+
     const map = L.map('picker-map').setView([45.0, 5.0], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -182,17 +215,24 @@
 
             const m = data.data_collected;
             const metrics = [
-                { label: 'Высота', val: m.elevation.toFixed(0) + ' m' },
+                { label: 'Высота', val: m.elevation.toFixed(0) + ' м' },
                 { label: 'Уклон', val: m.slope.toFixed(1) + '°' },
                 { label: 'Средняя температура за год', val: m.mid_year_temp.toFixed(1) + ' °C' },
-                { label: 'Осадки', val: m.precipitation.toFixed(0) + ' mm' },
+                { label: 'Осадки', val: m.precipitation.toFixed(0) + ' мм' },
                 { label: 'Нормализованный вегетационный индекс', val: m.ndvi.toFixed(2) },
                 { label: 'Нормализованный разностный водный индекс', val: m.ndwi.toFixed(2) },
-                { label: 'Soil pH', val: m.soil_ph.toFixed(1) },
-                { label: 'Organic Carbon', val: m.soil_organic_carbon + ' g/kg' },
-                { label: 'Solar Rad', val: m.solar_radiation.toFixed(1) + ' MJ/m²' },
-                { label: 'Fire Risk (PDSI)', val: m.fire_risk.toFixed(1) },
-                { label: 'LAI', val: m.lai.toFixed(2) }
+                { label: 'Кислотность почвы', val: m.soil_ph.toFixed(1) },
+                { label: 'Органический углерод в почве', val: m.soil_organic_carbon + ' г/кг' },
+                { label: 'Суммарный объем солнечной радиации', val: m.solar_radiation.toFixed(1) + ' МДж/м²' },
+                { label: 'Индекс засухи Палмера', val: m.fire_risk.toFixed(1) },
+                { label: 'Индекс листовой поверхности', val: m.lai.toFixed(2) },
+                { label: 'Усовершенствованный вегетационный индекс', val: m.evi.toFixed(2) },
+                { label: 'Тип ландшафта', val: getLandCoverName(m.land_cover_type) },
+                { label: 'Средняя скорость ветра', val: m.wind_speed.toFixed(2) },
+                { label: 'Экспозиция', val: getAspectDirection(m.aspect) },
+                { label: 'Индекс Winkler', val: m.winkler_index.toFixed(2)   + ' °C' },
+                { label: 'Эвапотранспирация', val: m.evapotranspiration.toFixed(2)  + ' мм/мес'  },
+                { label: 'Температура точки росы', val: m.humidity.toFixed(2)  + ' °C' }
             ];
 
             envMetrics.innerHTML = metrics.map(met => `
