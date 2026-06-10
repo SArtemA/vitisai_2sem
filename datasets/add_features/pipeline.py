@@ -59,15 +59,15 @@ def run_pipeline():
 
         # Для визуала
         general_row_count = repository.get_count_row(db_path, table_name)
-        print(f"*** В таблице '{table_name}' всего позиций - {general_row_count} ***")
+        print(f"\n\t*** В таблице '{table_name}' всего позиций - {general_row_count} ***")
 
         # terrain_GEE_USGS
-        # print("=====terrain_GEE_USGS=====")
-        # already_processed = get_already_processed(db_path, table_name, 'elevation_GEE_USGS_30m')
-        # print(f"Уже обработано строк для terrain_GEE_USGS - {already_processed}", end='')
-        # print(f" (соотношение {already_processed/general_row_count*100:.2f}%)")
+        print("=====terrain_GEE_USGS=====")
+        already_processed = get_already_processed(db_path, table_name, 'elevation_GEE_USGS_30m')
+        print(f"Уже обработано строк для terrain_GEE_USGS - {already_processed}", end='')
+        print(f" (соотношение {already_processed/general_row_count*100:.2f}%)")
 
-        while False:
+        while True:
             cycle_processed = 0
             # Запрос из БД
             pending_items = repository.get_row_by_status(
@@ -92,7 +92,10 @@ def run_pipeline():
             features = create_feature_GEE(coords)
 
             #
-            data_to_db = terrain_GEE_USGS(features, verbose=True)
+            data_to_db = terrain_GEE_USGS(
+                features,
+                verbose=False
+            )
 
             #
             already_processed += len(osm_id)
@@ -108,12 +111,12 @@ def run_pipeline():
             break
 
         # climate_GEE_TERRA
-        # print("=====climate_GEE_TERRA=====")
-        # already_processed = get_already_processed(db_path, table_name, 'precip_total_GEE_TERRA_2024')
-        # print(f"Уже обработано строк для climate_GEE_TERRA - {already_processed}", end='')
-        # print(f" (соотношение {already_processed / general_row_count * 100:.2f}%)")
+        print("=====climate_GEE_TERRA=====")
+        already_processed = get_already_processed(db_path, table_name, 'precip_total_GEE_TERRA_2024')
+        print(f"Уже обработано строк для climate_GEE_TERRA - {already_processed}", end='')
+        print(f" (соотношение {already_processed / general_row_count * 100:.2f}%)")
 
-        while False:
+        while True:
             cycle_processed = 0
             # Запрос из БД
             pending_items = repository.get_row_by_status(
@@ -158,60 +161,6 @@ def run_pipeline():
             time.sleep(SLEEP_TIME)
             break
 
-        # landsat_GEE
-        # print("=====landsat_GEE=====")
-        # already_processed = get_already_processed(db_path, table_name, 'NDVI_phase2_2024')
-        # print(f"Уже обработано строк для landsat_GEE - {already_processed}", end='')
-        # print(f" (соотношение {already_processed / general_row_count * 100:.2f}%)")
-
-        while False:
-            cycle_processed = 0
-            # Запрос из БД
-            pending_items = repository.get_row_by_status(
-                db_path,
-                table_name,
-                ['NDVI_phase2_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
-                status=['pending', 'done', 'done'],
-                limit=100,
-                random_order=True
-            )
-
-            # Проверка что данные еще есть
-            if not pending_items:
-                logging.info("Для landsat_GEE больше нету не заполненных данных. Выход.")
-                break
-            else:
-                cycle_processed += len(pending_items)
-                total_processed += cycle_processed
-
-            # Подгонка данных для функций
-            osm_id = [item[0] for item in pending_items]
-            coords = [list(item[1:]) for item in pending_items]
-            features = create_feature_GEE(coords)
-
-            #
-            data_to_db = landsat_GEE(
-                input_data=features,
-                year=2024,
-                scale=30,
-                verbose=True,
-                full_output=False
-            )
-
-            #
-            already_processed += len(osm_id)
-            if repository.update_vineyard_features(
-                    db_path,
-                    table_name,
-                    osm_id,
-                    data_to_db
-            ):
-                logging.info(
-                    f"Таблица '{table_name}' | 'landsat_GEE' | {general_row_count}\tиз\t{already_processed}\t({already_processed / general_row_count * 100:.2f}%)")
-
-            time.sleep(SLEEP_TIME)
-            break
-
         # fire_risk_GEE_TERRA
         print("=====fire_risk_GEE_TERRA=====")
         already_processed = get_already_processed(db_path, table_name, 'fire_risk_mean_GEE_TERRA_2024')
@@ -224,8 +173,8 @@ def run_pipeline():
             pending_items = repository.get_row_by_status(
                 db_path,
                 table_name,
-                ['fire_risk_mean_GEE_TERRA_2024', 'NDVI_phase2_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
-                status=['pending', 'done', 'done', 'done'],
+                ['fire_risk_mean_GEE_TERRA_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
+                status=['pending', 'done', 'done'],
                 limit=BATCH_SIZE,
                 random_order=True
             )
@@ -248,7 +197,7 @@ def run_pipeline():
                 input_data=features,
                 year=2024,
                 scale=4000,
-                verbose=True
+                verbose=False
             )
 
             #
@@ -277,8 +226,8 @@ def run_pipeline():
             pending_items = repository.get_row_by_status(
                 db_path,
                 table_name,
-                ['soil_ph_GEE_OLM', 'fire_risk_mean_GEE_TERRA_2024', 'NDVI_phase2_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
-                status=['pending', 'done', 'done', 'done', 'done'],
+                ['soil_ph_GEE_OLM', 'fire_risk_mean_GEE_TERRA_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
+                status=['pending', 'done', 'done', 'done'],
                 limit=BATCH_SIZE,
                 random_order=True
             )
@@ -299,7 +248,7 @@ def run_pipeline():
             #
             data_to_db = soil_properties_GEE_OLM(
                 input_data=features,
-                verbose=True
+                verbose=False
             )
 
             #
@@ -328,8 +277,8 @@ def run_pipeline():
             pending_items = repository.get_row_by_status(
                 db_path,
                 table_name,
-                ['evi_mean_GEE_MODIS_2024', 'soil_ph_GEE_OLM', 'fire_risk_mean_GEE_TERRA_2024', 'NDVI_phase2_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
-                status=['pending', 'done', 'done', 'done', 'done', 'done'],
+                ['evi_mean_GEE_MODIS_2024', 'soil_ph_GEE_OLM', 'fire_risk_mean_GEE_TERRA_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
+                status=['pending', 'done', 'done', 'done', 'done'],
                 limit=BATCH_SIZE,
                 random_order=True
             )
@@ -352,7 +301,7 @@ def run_pipeline():
                 input_data=features,
                 year=2024,
                 scale=250,
-                verbose=True
+                verbose=False
             )
 
             #
@@ -369,6 +318,59 @@ def run_pipeline():
             time.sleep(SLEEP_TIME)
             break
 
+        # landsat_GEE
+        print("=====landsat_GEE=====")
+        already_processed = get_already_processed(db_path, table_name, 'NDVI_phase2_2024')
+        print(f"Уже обработано строк для landsat_GEE - {already_processed}", end='')
+        print(f" (соотношение {already_processed / general_row_count * 100:.2f}%)")
+
+        while True:
+            cycle_processed = 0
+            # Запрос из БД
+            pending_items = repository.get_row_by_status(
+                db_path,
+                table_name,
+                ['NDVI_phase2_2024', 'evi_mean_GEE_MODIS_2024', 'soil_ph_GEE_OLM', 'fire_risk_mean_GEE_TERRA_2024', 'precip_total_GEE_TERRA_2024', 'elevation_GEE_USGS_30m'],
+                status=['pending', 'done', 'done', 'done', 'done', 'done'],
+                limit=100,
+                random_order=True
+            )
+
+            # Проверка что данные еще есть
+            if not pending_items:
+                logging.info("Для landsat_GEE больше нету не заполненных данных. Выход.")
+                break
+            else:
+                cycle_processed += len(pending_items)
+                total_processed += cycle_processed
+
+            # Подгонка данных для функций
+            osm_id = [item[0] for item in pending_items]
+            coords = [list(item[1:]) for item in pending_items]
+            features = create_feature_GEE(coords)
+
+            #
+            data_to_db = landsat_GEE(
+                input_data=features,
+                year=2024,
+                scale=30,
+                verbose=False,
+                full_output=False
+            )
+
+            #
+            already_processed += len(osm_id)
+            if repository.update_vineyard_features(
+                    db_path,
+                    table_name,
+                    osm_id,
+                    data_to_db
+            ):
+                logging.info(
+                    f"Таблица '{table_name}' | 'landsat_GEE' | {general_row_count}\tиз\t{already_processed}\t({already_processed / general_row_count * 100:.2f}%)")
+
+            time.sleep(SLEEP_TIME)
+            break
 
         # break
 
