@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 
 import xgboost as xgb
 
+import json
 
 warnings.filterwarnings("ignore")
 
@@ -30,11 +31,19 @@ FEATURES = ['elevation', 'slope', 'aspect', 'hillshade', 'mid_year_temp', 'preci
             'skin_reservoir_content', 'soil_temperature_level_3', 'skin_temperature', 'soil_bulk_density',
             'soil_sand', 'soil_clay', 'soil_texture_class']
 
-
 MUL_TARGET = ['arnsburger', 'arinto', 'mostosa', 'abbuoto', 'abouriou', 'acitana']
 BIN_TARGET = 'is_suitable'
 
-import gc
+if os.path.exists(os.path.join(BASE_DIR, 'priznaki.json')):
+    with open(os.path.join(BASE_DIR, 'priznaki.json'), 'r') as f:
+        priznaki = json.load(f)
+
+    FEATURES = priznaki['FEATURES']
+    MUL_TARGET = priznaki['MUL_TARGET']
+    BIN_TARGET = priznaki['BIN_TARGET']
+
+
+
 
 
 class BinSuitClassifier:
@@ -63,7 +72,7 @@ class BinSuitClassifier:
             self.model = xgb.XGBClassifier()
             self.model.load_model(model_filename)
             self.scaler = joblib.load(scaler_filename)
-            print("Model and scaler loaded successfully.")
+            print("+++Model and scaler loaded successfully.+++")
         except (FileNotFoundError, xgb.core.XGBoostError) as e:
             print(f"Error loading model files: {e}. Please ensure the training script was run.")
             # exit()
@@ -277,7 +286,7 @@ class MultiGrapeXGBClassifier:
         if path_to_model:
             model_dir = path_to_model
         else:
-            model_dir = os.path.join(BASE_DIR, 'trained_models_multi')
+            model_dir = os.path.join(BASE_DIR, 'trained_models_mul')
 
         model_filename = os.path.join(model_dir, 'multi_output_xgb_model.joblib')
         scaler_filename = os.path.join(model_dir, 'scaler.joblib')
@@ -289,7 +298,7 @@ class MultiGrapeXGBClassifier:
             self.loaded_scaler = joblib.load(scaler_filename)
             self.loaded_feature_names = joblib.load(feature_names_filename)
             self.loaded_target_names = joblib.load(target_names_filename)
-            print("Model, scaler, and metadata loaded successfully.")
+            print("+++Model, scaler, and metadata loaded successfully.+++")
         except FileNotFoundError:
             print(f"Error: Model files not found in {model_dir}. Please ensure the training script was run.")
             # exit()
