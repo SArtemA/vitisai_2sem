@@ -33,7 +33,7 @@ FEATURES = ['elevation', 'slope', 'aspect', 'hillshade', 'mid_year_temp', 'preci
 
 MUL_TARGET = ['arnsburger', 'arinto', 'mostosa', 'abbuoto', 'abouriou', 'acitana']
 BIN_TARGET = 'is_suitable'
-
+print('full', len(FEATURES))
 if os.path.exists(os.path.join(BASE_DIR, 'priznaki.json')):
     with open(os.path.join(BASE_DIR, 'priznaki.json'), 'r') as f:
         priznaki = json.load(f)
@@ -42,7 +42,7 @@ if os.path.exists(os.path.join(BASE_DIR, 'priznaki.json')):
     MUL_TARGET = priznaki['MUL_TARGET']
     BIN_TARGET = priznaki['BIN_TARGET']
 
-
+print('shortened?', len(FEATURES))
 
 
 
