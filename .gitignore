@@ -24,3 +24,5 @@
 /_fix_columns.py
 /_fix_multipy.py
 /_fix_multiply_cols.py
+/models/priznaki.json
+/models/trained_models_mul/
