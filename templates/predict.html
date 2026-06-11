@@ -133,6 +133,25 @@
         return mapping[code] || `Неизвестный тип (${code})`;
     }
 
+    function getSoilTextClass(code) {
+        if (code === undefined || code === null) return 'N/A';
+        const mapping = {
+            1:"Cl",
+            2:"SiCl",
+            3:"SaCl",
+            4:"ClLo",
+            5:"SiClLo",
+            6:"SaClLo",
+            7:"Lo",
+            8:"SiLo",
+            9:"SaLo",
+            10:"Si",
+            11:"LoSa",
+            12:"Sa"
+        };
+        return mapping[code] || `Неизвестный тип (${code})`;
+    }
+
     const map = L.map('picker-map').setView([45.0, 5.0], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -233,6 +252,21 @@
                 { label: 'Индекс Winkler', val: m.winkler_index.toFixed(2)   + ' °C' },
                 { label: 'Эвапотранспирация', val: m.evapotranspiration.toFixed(2)  + ' мм/мес'  },
                 { label: 'Температура точки росы', val: m.humidity.toFixed(2)  + ' °C' }
+
+                { label: 'ФАР', val: m.fpar.toFixed(2)}
+                { label: 'Атмосферное давление', val: m.surface_pressure.toFixed(2)  + ' КПа' }
+                { label: 'Потенциальное испарение', val: m.potential_evaporation_sum.toFixed(2)  + ' мм' }
+                { label: 'Теплообмен почвы с атмосферой', val: m.surface_sensible_heat_flux_sum.toFixed(2)  + ' Дж/м²' }
+                { label: 'Объем воды на глубине 60см', val: m.volumetric_soil_water_layer_3.toFixed(2)  + ' %' }
+                { label: 'Количество воды в тонком слое почвы', val: m.skin_reservoir_content.toFixed(2)  + ' мм' }
+                { label: 'Температура почвы на глубине 60см', val: m.soil_temperature_level_3.toFixed(2)  + ' °C' }
+                { label: 'Температура поверхности почвы', val: m.skin_temperature.toFixed(2)  + ' °C' }
+                { label: 'Объемная плотность почвы', val: m.soil_bulk_density.toFixed(2)  + ' кг/м³' }
+                { label: 'Содержание песка в почве', val: m.soil_sand.toFixed(2)  + ' % (кг / кг)' }
+                { label: 'Содержание глины в почве', val: m.soil_clay.toFixed(2)  + ' % (кг / кг)' }
+                { label: 'Класс почвы по системе USDA system', val: getSoilTextClass(m.soil_texture_class) }
+
+
             ];
 
             envMetrics.innerHTML = metrics.map(met => `
