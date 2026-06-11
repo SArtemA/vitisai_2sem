@@ -49,6 +49,19 @@ class VineyardFeature(Base):
     fire_risk = Column(Float)
 
     is_suitable = Column(Boolean, default=True)
+    # --- New GEE Parameters (Expanded) ---
+    fpar = Column(Float)
+    surface_pressure = Column(Float)
+    potential_evaporation_sum = Column(Float)
+    surface_sensible_heat_flux_sum = Column(Float)
+    volumetric_soil_water_layer_3 = Column(Float)
+    skin_reservoir_content = Column(Float)
+    soil_temperature_level_3 = Column(Float)
+    skin_temperature = Column(Float)
+    soil_bulk_density = Column(Float)
+    soil_sand = Column(Float)
+    soil_clay = Column(Float)
+    soil_texture_class = Column(Integer)
 
 
 # 1. Create table structure if it doesn't exist

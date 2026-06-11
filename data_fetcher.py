@@ -48,14 +48,15 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
     weather_data = get_properties(era5, 30)
 
     # 3. Soil Data (OpenLandMap)
-    soil_ph_img = ee.Image("OpenLandMap/SOL/SOL_PH-H2O_USDA-4C1A2A_M/v02").select('b0')
-    soil_soc_img = ee.Image("OpenLandMap/SOL/SOL_ORGANIC-CARBON_USDA-6A1C_M/v02").select('b0')
+    soil_ph_img = ee.Image("OpenLandMap/SOL/SOL_PH-H2O_USDA-4C1A2A_M/v02").select('b60')
+    soil_soc_img = ee.Image("OpenLandMap/SOL/SOL_ORGANIC-CARBON_USDA-6A1C_M/v02").select('b60')
+
 
     ph_props = get_properties(soil_ph_img, 30)
     soc_props = get_properties(soil_soc_img, 30)
 
-    ph_val = ph_props.get('b0', 60)
-    soc_val = soc_props.get('b0', 0)
+    ph_val = ph_props.get('b60', 60)
+    soc_val = soc_props.get('b60', 0)
 
     # 4. Land Cover (ESA WorldCover 10m)
     land_cover_img = ee.ImageCollection("ESA/WorldCover/v100").first().select('Map')
@@ -78,6 +79,7 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
     lai_img = ee.ImageCollection("MODIS/061/MCD15A3H").filterDate(date_range['start'], date_range['end']).median()
     lai_props = get_properties(lai_img, 500)
     lai_val = (lai_props.get('Lai', 0) * 0.1) if 'Lai' in lai_props else 0.0
+
 
     # 8. Fire Risk (Proxy via TerraClimate PDSI)
     fire_proxy = ee.ImageCollection("IDAHO_EPSCOR/TERRACLIMATE").filterDate(date_range['start'],
@@ -112,17 +114,58 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
     mid_year_temp_k = weather_data.get('temperature_2m', 273.15)
     humidity_k = weather_data.get('dewpoint_temperature_2m', 273.15)
 
+
+    # new parameters
+    # --- New OpenLandMap Soil Layers ---
+    soil_bulk_dens_img = ee.Image("OpenLandMap/SOL/SOL_BULKDENS-FINEEARTH_USDA-4A1H_M/v02").select('b60')
+    soil_sand_img = ee.Image("OpenLandMap/SOL/SOL_SAND-WFRACTION_USDA-3A1A1A_M/v02").select('b60')
+    soil_clay_img = ee.Image("OpenLandMap/SOL/SOL_CLAY-WFRACTION_USDA-3A1A1A_M/v02").select('b60')
+    soil_class_img = ee.Image("OpenLandMap/SOL/SOL_TEXTURE-CLASS_USDA-TT_M/v02").select('b60')
+
+    soil_bulk_dens_props = get_properties(soil_bulk_dens_img, 30)
+    soil_sand_props = get_properties(soil_sand_img, 30)
+    soil_clay_props = get_properties(soil_clay_img, 30)
+    soil_class_props = get_properties(soil_class_img, 30)
+
+    # --- Corrected parameters (removed tuple-making trailing commas) ---
+    fpar_val = (lai_props.get('Fpar', 0) * 0.1) if 'Lai' in lai_props else 0.0
+    surface_pressure = weather_data.get('surface_pressure', 0.0)  # Pa
+    potential_evaporation_sum = weather_data.get('potential_evaporation_sum', 0.0)  # m
+    surface_sensible_heat_flux_sum = weather_data.get('surface_sensible_heat_flux_sum', 0.0)  # J/m²
+    volumetric_soil_water_layer_3 = weather_data.get('volumetric_soil_water_layer_3', 0.0)  # %
+    skin_reservoir_content = weather_data.get('skin_reservoir_content', 0.0)  # m
+    soil_temperature_level_3 = weather_data.get('soil_temperature_level_3', 0.0)  # K
+    skin_temperature = weather_data.get('skin_temperature', 0.0)  # K
+
+    soil_bulk_dens_val = soil_bulk_dens_props.get('b60', 0.0)
+    soil_sand_val = soil_sand_props.get('b60', 0.0)
+    soil_clay_val = soil_clay_props.get('b60', 0.0)
+    soil_class_val = soil_class_props.get('b60', 0.0)
+    # 1	    Cl
+    # 2	    SiCl
+    # 3	    SaCl
+    # 4	    ClLo
+    # 5	    SiClLo
+    # 6	    SaClLo
+    # 7	    Lo
+    # 8	    SiLo
+    # 9	    SaLo
+    # 10	Si
+    # 11	LoSa
+    # 12	Sa
+
+
     return {
-        "elevation": terrain.get('elevation', 0.0),
-        "slope": terrain.get('slope', 0.0),
-        "aspect": terrain.get('aspect', 0.0),
-        "hillshade": terrain.get('hillshade', 0.0),
-        "mid_year_temp": mid_year_temp_k - 273.15,
-        "precipitation": weather_data.get('total_precipitation', 0.0) * 1000,
+        "elevation": terrain.get('elevation', 0.0), #
+        "slope": terrain.get('slope', 0.0), #
+        "aspect": terrain.get('aspect', 0.0), #
+        "hillshade": terrain.get('hillshade', 0.0),#
+        "mid_year_temp": mid_year_temp_k - 273.15, #
+        "precipitation": weather_data.get('total_precipitation_sum', 0.0) * 1000,
         "humidity": humidity_k - 273.15,
         "solar_radiation": weather_data.get('surface_solar_radiation_downwards_sum', 0.0) / 1000000,
         "wind_speed": wind_speed,
-        "evapotranspiration": weather_data.get('total_evaporation', 0.0) * 0.001,
+        "evapotranspiration": weather_data.get('total_evaporation_sum', 0.0) * 1000,
         "evi": evi_val,
         "lai": lai_val,
         "land_cover_type": lc_val,
@@ -135,12 +178,25 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
         "elevation_status": "SUCCESS" if 'elevation' in terrain else "FAILED",
         "slope_status": "SUCCESS" if 'slope' in terrain else "FAILED",
         "aspect_status": "SUCCESS" if 'aspect' in terrain else "FAILED",
-        "hillshade_status": "SUCCESS" if 'hillshade' in terrain else "FAILED"
+        "hillshade_status": "SUCCESS" if 'hillshade' in terrain else "FAILED",
+        # --- Added Parameters ---
+        "fpar": fpar_val,
+        "surface_pressure": surface_pressure * 1000, # KPa
+        "potential_evaporation_sum": potential_evaporation_sum * 1000,
+        "surface_sensible_heat_flux_sum": surface_sensible_heat_flux_sum,
+        "volumetric_soil_water_layer_3": volumetric_soil_water_layer_3,
+        "skin_reservoir_content": skin_reservoir_content * 1000,
+        "soil_temperature_level_3": soil_temperature_level_3 - 273.15, # °C
+        "skin_temperature": skin_temperature - 273.15, # °C
+        "soil_bulk_density": soil_bulk_dens_val,
+        "soil_sand": soil_sand_val,
+        "soil_clay": soil_clay_val,
+        "soil_texture_class": soil_class_val
     }
 
 
 def _fetch_from_public_apis(lat: float, lon: float) -> dict:
-    print("не получилось в гее")
+    print("пу пу пу")
     return {
         "elevation": 0.0,
         "elevation_status": "FAILED",
@@ -164,5 +220,18 @@ def _fetch_from_public_apis(lat: float, lon: float) -> dict:
         "fire_risk": 0.0,
         "winkler_index": 0.0,
         "ndvi": 0.0,
-        "ndwi": 0.0
+        "ndwi": 0.0,
+
+        "fpar": 0.0,
+        "surface_pressure": 101325.0,
+        "potential_evaporation_sum": 0.0,
+        "surface_sensible_heat_flux_sum": 0.0,
+        "volumetric_soil_water_layer_3": 0.0,
+        "skin_reservoir_content": 0.0,
+        "soil_temperature_level_3": 288.15,
+        "skin_temperature": 288.15,
+        "soil_bulk_density": 0.0,
+        "soil_sand": 0.0,
+        "soil_clay": 0.0,
+        "soil_texture_class": 0
     }

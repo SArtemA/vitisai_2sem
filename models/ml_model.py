@@ -1,4 +1,5 @@
 import os
+import gc
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -24,10 +25,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 FEATURES = ['elevation', 'slope', 'aspect', 'hillshade', 'mid_year_temp', 'precipitation', 'ndvi', 'ndwi',
             'solar_radiation', 'humidity', 'wind_speed', 'evapotranspiration', 'evi', 'lai', 'land_cover_type',
-            'soil_ph', 'soil_organic_carbon', 'fire_risk', 'winkler_index']
+            'soil_ph', 'soil_organic_carbon', 'fire_risk', 'winkler_index', 'fpar', 'surface_pressure',
+            'potential_evaporation_sum', 'surface_sensible_heat_flux_sum', 'volumetric_soil_water_layer_3',
+            'skin_reservoir_content', 'soil_temperature_level_3', 'skin_temperature', 'soil_bulk_density',
+            'soil_sand', 'soil_clay', 'soil_texture_class']
+
 
 MUL_TARGET = ['arnsburger', 'arinto', 'mostosa', 'abbuoto', 'abouriou', 'acitana']
 BIN_TARGET = 'is_suitable'
+
+import gc
 
 
 class BinSuitClassifier:
@@ -52,27 +59,34 @@ class BinSuitClassifier:
         scaler_filename = os.path.join(model_dir, 'xgboost_bin_model_scaler.pkl')
 
         try:
-            self.model = joblib.load(model_filename)
+            # Инициализируем пустой класс XGBoost и загружаем модель через родной метод
+            self.model = xgb.XGBClassifier()
+            self.model.load_model(model_filename)
             self.scaler = joblib.load(scaler_filename)
-        except FileNotFoundError:
-            print(f"Error: Model files not found in {model_dir}. Please ensure the training script was run.")
-            exit()
+            print("Model and scaler loaded successfully.")
+        except (FileNotFoundError, xgb.core.XGBoostError) as e:
+            print(f"Error loading model files: {e}. Please ensure the training script was run.")
+            # exit()
 
     def save_model(self, bin_model, scaler_bin):
         print("\nSaving the trained model...")
-        model_dir = os.path.join(BASE_DIR, 'trained_models_bin')
+        model_dir = self.path_to_save if self.path_to_save else os.path.join(BASE_DIR, 'trained_models_bin')
 
         os.makedirs(model_dir, exist_ok=True)
         model_filename = os.path.join(model_dir, 'xgboost_bin_model.json')
         scaler_filename = os.path.join(model_dir, 'xgboost_bin_model_scaler.pkl')
 
-        joblib.dump(bin_model, model_filename)
-        joblib.dump(scaler_bin, scaler_filename)
+        # Используем родной метод сохранения XGBoost для экономии RAM
+        bin_model.save_model(model_filename)
+        # Сохраняем scaler сжатым
+        joblib.dump(scaler_bin, scaler_filename, compress=3)
 
         print(f"Модель сохранена в {model_filename}")
         print(f"Scaler сохранён в {scaler_filename}")
 
-    def train(self, df, use_grid_search=False, device='cpu'):
+        gc.collect()
+
+    def train(self, df, use_grid_search=False, device='cpu', param_grid=None):
         X = df[FEATURES].copy()
         y = df[BIN_TARGET].astype(int)
         X = X.apply(pd.to_numeric, errors='coerce')
@@ -122,17 +136,17 @@ class BinSuitClassifier:
         if use_grid_search:
             print("\nВыполняется подбор гиперпараметров...")
             X_train_full_scaled = prepare_data(X_train_raw, fit_scaler=False)
-
-            param_grid = {
-                'n_estimators': [100, 200, 300],
-                'learning_rate': [0.01, 0.05, 0.1],
-                'max_depth': [3, 5, 7],
-                'subsample': [0.7, 0.8, 1.0],
-                'colsample_bytree': [0.7, 0.8, 1.0],
-                'gamma': [0, 0.1, 0.2],
-                'reg_alpha': [0, 0.001, 0.1],
-                'reg_lambda': [1, 1.5, 2]
-            }
+            if param_grid is None:
+                param_grid = {
+                    'n_estimators': [100, 200, 300],
+                    'learning_rate': [0.01, 0.05, 0.1],
+                    'max_depth': [3, 5, 7],
+                    'subsample': [0.7, 0.8, 1.0],
+                    'colsample_bytree': [0.7, 0.8, 1.0],
+                    'gamma': [0, 0.1, 0.2],
+                    'reg_alpha': [0, 0.001, 0.1],
+                    'reg_lambda': [1, 1.5, 2]
+                }
 
             base_model = xgb.XGBClassifier(
                 objective='binary:logistic',
@@ -149,7 +163,7 @@ class BinSuitClassifier:
                 scoring='roc_auc',
                 cv=3,
                 verbose=1,
-                n_jobs=1
+                n_jobs=-1
             )
 
             try:
@@ -162,7 +176,7 @@ class BinSuitClassifier:
                     'learning_rate': [0.1]
                 }
                 grid_search = GridSearchCV(
-                    base_model, param_grid_simple, scoring='roc_auc', cv=3, verbose=1, n_jobs=1
+                    base_model, param_grid_simple, scoring='roc_auc', cv=3, verbose=1, n_jobs=-1
                 )
                 grid_search.fit(X_train_full_scaled, y_train)
 
@@ -172,9 +186,14 @@ class BinSuitClassifier:
         else:
             print("\nОбучение с параметрами по умолчанию...")
             best_params = {
-                'n_estimators': 100,
+                'colsample_bytree': 0.7,
+                'gamma': 0.2,
                 'learning_rate': 0.1,
-                'max_depth': 5
+                'max_depth': 3,
+                'n_estimators': 300,
+                'reg_alpha': 0.001,
+                'reg_lambda': 1,
+                'subsample': 0.7
             }
 
         # Создаем финальную модель
@@ -195,7 +214,7 @@ class BinSuitClassifier:
         self.model.fit(
             X_train_scaled, y_train_sub,
             eval_set=[(X_val_scaled, y_val)],
-            verbose=True
+            verbose=False
         )
 
         print("Training complete.")
@@ -217,6 +236,12 @@ class BinSuitClassifier:
         print(f"F1 Score (Macro): {f1_macro:.4f}")
         print(f"ROC AUC Score (Macro Avg): {auc_score:.4f}")
         print("\nTrain finished.")
+
+        # Высвобождаем память от тяжелых датасетов перед вызовом сохранения
+        del X, y, X_train_raw, X_test_raw, y_train, y_test
+        del X_train_sub, X_val, y_train_sub, y_val
+        del X_train_scaled, X_val_scaled, X_test_scaled
+        gc.collect()
 
         self.save_model(self.model, self.scaler)
 
@@ -267,30 +292,34 @@ class MultiGrapeXGBClassifier:
             print("Model, scaler, and metadata loaded successfully.")
         except FileNotFoundError:
             print(f"Error: Model files not found in {model_dir}. Please ensure the training script was run.")
-            exit()
+            # exit()
 
     def save_model(self, multi_output_xgb_model, scaler_multi, feature_names, target_names):
         print("\nSaving the trained model...")
         model_dir = self.path_to_save if self.path_to_save else os.path.join(BASE_DIR, 'trained_models_mul')
-        model_filename = os.path.join(model_dir, 'multi_output_xgb_model.joblib')
-
         os.makedirs(model_dir, exist_ok=True)
-        joblib.dump(multi_output_xgb_model, model_filename)
+
+        model_filename = os.path.join(model_dir, 'multi_output_xgb_model.joblib')
+        scaler_filename = os.path.join(model_dir, 'scaler.joblib')
+        feature_names_filename = os.path.join(model_dir, 'feature_names.joblib')
+        target_names_filename = os.path.join(model_dir, 'target_names.joblib')
+
+        # Используем сжатие compress=3 для снижения потребления памяти во время сохранения через joblib
+        joblib.dump(multi_output_xgb_model, model_filename, compress=3)
         print(f"Model saved successfully to {model_filename}")
 
-        scaler_filename = os.path.join(model_dir, 'scaler.joblib')
-        joblib.dump(scaler_multi, scaler_filename)
+        joblib.dump(scaler_multi, scaler_filename, compress=3)
         print(f"Scaler saved successfully to {scaler_filename}")
 
-        feature_names_filename = os.path.join(model_dir, 'feature_names.joblib')
-        joblib.dump(feature_names, feature_names_filename)
+        joblib.dump(feature_names, feature_names_filename, compress=3)
         print(f"Feature names saved successfully to {feature_names_filename}")
 
-        target_names_filename = os.path.join(model_dir, 'target_names.joblib')
-        joblib.dump(target_names, target_names_filename)
+        joblib.dump(target_names, target_names_filename, compress=3)
         print(f"Target names saved successfully to {target_names_filename}")
 
-    def train(self, df, use_grid_search=False, device='cpu'):
+        gc.collect()
+
+    def train(self, df, use_grid_search=False, device='cpu', param_grid=None):
         feature_names = FEATURES
         target_names = MUL_TARGET
 
@@ -317,6 +346,7 @@ class MultiGrapeXGBClassifier:
         if device == 'cuda':
             device_params['device'] = 'cuda'
             device_params['tree_method'] = 'hist'
+            device_params['n_jobs'] = -1
         else:
             device_params['device'] = 'cpu'
             device_params['n_jobs'] = -1
@@ -333,17 +363,17 @@ class MultiGrapeXGBClassifier:
 
         if use_grid_search:
             multi_output_xgb_model = MultiOutputClassifier(xgb_base_model, n_jobs=-1)
-
-            param_grid = {
-                'estimator__max_depth': [3, 5, 7],
-                'estimator__learning_rate': [0.01, 0.05, 0.1],
-                'estimator__n_estimators': [100, 200, 300],
-                'estimator__subsample': [0.7, 0.8, 1.0],
-                'estimator__colsample_bytree': [0.7, 0.8, 1.0],
-                'estimator__gamma': [0, 0.1, 0.2],
-                'estimator__reg_alpha': [0, 0.001, 0.1],
-                'estimator__reg_lambda': [1, 1.5, 2]
-            }
+            if param_grid is None:
+                param_grid = {
+                    'estimator__max_depth': [3, 5, 7],
+                    'estimator__learning_rate': [0.01, 0.05, 0.1],
+                    'estimator__n_estimators': [100, 200, 300],
+                    'estimator__subsample': [0.7, 0.8, 1.0],
+                    'estimator__colsample_bytree': [0.7, 0.8, 1.0],
+                    'estimator__gamma': [0, 0.1, 0.2],
+                    'estimator__reg_alpha': [0, 0.001, 0.1],
+                    'estimator__reg_lambda': [1, 1.5, 2]
+                }
 
             print("Starting Grid Search CV...")
             grid_search = GridSearchCV(
@@ -364,12 +394,17 @@ class MultiGrapeXGBClassifier:
             best_multi_output_model = grid_search.best_estimator_
         else:
             print("\nTraining with default parameters...")
-            # Применение параметров по умолчанию
             xgb_base_model.set_params(
-                max_depth=5,
-                learning_rate=0.1,
-                n_estimators=100
+                max_depth=7,
+                learning_rate=0.01,
+                n_estimators=300,
+                subsample=0.8,
+                colsample_bytree=0.7,
+                gamma=0.3,
+                reg_alpha=0.1,
+                reg_lambda=1
             )
+
             best_multi_output_model = MultiOutputClassifier(xgb_base_model, n_jobs=-1)
             best_multi_output_model.fit(X_train_scaled_df, y_train)
 
@@ -404,6 +439,16 @@ class MultiGrapeXGBClassifier:
 
         print("\nTrain finished.")
         print('\nSaving model')
+        self.loaded_model = best_multi_output_model
+        self.loaded_scaler = scaler_multi
+        self.loaded_feature_names = feature_names
+        self.loaded_target_names = target_names
+
+        # Удаляем локальные переменные датасетов для экономии памяти перед сохранением
+        del X, y, X_train, X_test, y_train, y_test
+        del X_train_scaled, X_test_scaled, X_train_scaled_df, X_test_scaled_df
+        gc.collect()
+
         self.save_model(best_multi_output_model, scaler_multi, feature_names, target_names)
 
     def predict(self, new_data_raw):
