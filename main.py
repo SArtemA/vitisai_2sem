@@ -122,6 +122,18 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
         land_cover_type=env_data["land_cover_type"],
         is_suitable=is_suitable,
         evapotranspiration=env_data["evapotranspiration"],
+        fpar=env_data.get("fpar"),
+        surface_pressure=env_data.get("surface_pressure"),
+        potential_evaporation_sum=env_data.get("potential_evaporation_sum"),
+        surface_sensible_heat_flux_sum=env_data.get("surface_sensible_heat_flux_sum"),
+        volumetric_soil_water_layer_3=env_data.get("volumetric_soil_water_layer_3"),
+        skin_reservoir_content=env_data.get("skin_reservoir_content"),
+        soil_temperature_level_3=env_data.get("soil_temperature_level_3"),
+        skin_temperature=env_data.get("skin_temperature"),
+        soil_bulk_density=env_data.get("soil_bulk_density"),
+        soil_sand=env_data.get("soil_sand"),
+        soil_clay=env_data.get("soil_clay"),
+        soil_texture_class=env_data.get("soil_texture_class")
     )
     db.add(new_record)
     db.commit()

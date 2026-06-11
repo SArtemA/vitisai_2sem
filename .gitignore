@@ -19,3 +19,8 @@
 /annotated_grapes.csv
 /vineyards_v3.csv
 /.idea
+/models/bin_cls.zip
+/_new_params.py
+/_fix_columns.py
+/_fix_multipy.py
+/_fix_multiply_cols.py
