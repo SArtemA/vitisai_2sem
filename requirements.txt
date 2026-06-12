@@ -12,3 +12,4 @@ requests~=2.34.2
 pytest
 flake8
 httpx2
+jinja2
