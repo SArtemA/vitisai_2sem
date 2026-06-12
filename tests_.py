@@ -22,8 +22,19 @@ class TestsClass:
         path4 = Path(Path().cwd(), 'databases', 'vineyards_v3.db').exists()
         path5 = Path(Path().cwd(), 'models', 'trained_models_bin').exists()
         path6 = Path(Path().cwd(), 'models', 'trained_models_mul').exists()
+        ans = True
+        imposter = ''
+        if path4:
+            ans = False
+            imposter += 'vineyards_v3.db '
+        if path5:
+            ans = False
+            imposter += 'trained_models_bin '
+        if path6:
+            ans = False
+            imposter += 'trained_models_mul '
 
-        assert (not path4 and not path5 and not path6), f"They don't belong there"
+        assert ans, f"{imposter} don't belong there"
 
     def test_fetch_type(self):
         assert type(fetch_environmental_data(lat=1.1, lon=1.1)) == dict, f"Expected type dict to be returned"
