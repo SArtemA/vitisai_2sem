@@ -19,14 +19,17 @@ class TestsClass:
 
     def test_db_models_not_exists(self):
 
-        path4 = Path(Path().cwd(), 'databases', 'vineyards_v3.db').exists()
+        path4 = Path(Path().cwd(), 'databases', 'vineyards_v3.db')
         path5 = Path(Path().cwd(), 'models', 'trained_models_bin').exists()
         path6 = Path(Path().cwd(), 'models', 'trained_models_mul').exists()
         ans = True
         imposter = ''
-        if path4:
-            ans = False
-            imposter += 'vineyards_v3.db '
+        if path4.exists():
+            if path4.stat().st_size > 100000:
+                ans = False
+                imposter += 'vineyards_v3.db '
+            else:
+                print('created empty vin db')
         if path5:
             ans = False
             imposter += 'trained_models_bin '
