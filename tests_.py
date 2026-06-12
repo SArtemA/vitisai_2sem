@@ -56,6 +56,8 @@ class TestsClass:
         app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)
         response = client.get("/")
+        print('response.status_code', response.status_code)
+        print('response.headers', response.headers)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
@@ -63,6 +65,8 @@ class TestsClass:
         app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)
         response = client.get("/predict_page")
+        print('response.status_code', response.status_code)
+        print('response.headers', response.headers)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
@@ -71,4 +75,5 @@ class TestsClass:
         client = TestClient(app)
         # Verify validation error occurs with missing/bad input
         response = client.post("/api/predict", json={"lat": "invalid_latitude"})
+        print('response.status_code',response.status_code)
         assert response.status_code == 422
