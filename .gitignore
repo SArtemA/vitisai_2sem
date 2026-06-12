@@ -26,3 +26,7 @@
 /_fix_multiply_cols.py
 /models/priznaki.json
 /models/trained_models_mul/
+/_grapes_types_v2.py
+/cleared_grapes_ohe.csv
+/annotated_grapes_maxi.csv
+/databases/grapes_annotated_v2.db
