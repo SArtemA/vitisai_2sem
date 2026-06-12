@@ -1,0 +1,69 @@
+from pathlib import Path
+import ee
+from data_fetcher import *
+from data_fetcher import _fetch_from_public_apis
+from models.ml_model import *
+from fastapi.testclient import TestClient
+
+class TestsClass:
+
+    def test_ui_exists(self):
+        path1 = Path(__file__, 'templates', 'base.html')
+        path2 = Path(__file__, 'templates', 'map.html')
+        path3 = Path(__file__, 'templates', 'predict.html')
+
+        assert path1.is_file() and path2.is_file() and path3.is_file(), f"Expected fils at templates were not found."
+
+    def test_fetch_type(self):
+        assert type(fetch_environmental_data(lat=1.1, lon=1.1)) == dict, f"Expected type dict to be returned"
+
+    def test_fetch_fallback(self, capsys):
+        fetch_environmental_data(lat=1.1, lon=1.1)
+        captured = capsys.readouterr()
+        assert 'GEE Fetch failed' in captured.out
+
+    def test_fetch_map(self, capsys):
+        p_resp = _fetch_from_public_apis(1.1, 1.1)
+        assert (p_resp['elevation_status'] == 'FAILED' and p_resp['slope_status']     == 'FAILED' and
+                p_resp['aspect_status']    == 'FAILED' and p_resp['hillshade_status'] == 'FAILED')
+
+    def test_both_cls_exists(self):
+        try:
+            from models.ml_model import BinSuitClassifier
+            from models.ml_model import MultiGrapeXGBClassifier
+            imp_success = True
+        except Exception as e_import_class_fail:
+            print(e_import_class_fail)
+            imp_success = False
+        assert imp_success
+
+    def test_bin_attrs(self):
+        assert hasattr(BinSuitClassifier, 'predict_suitability')
+        assert hasattr(BinSuitClassifier, 'load_model')
+        assert callable(getattr(BinSuitClassifier, 'predict_suitability'))
+        assert callable(getattr(BinSuitClassifier, 'load_model'))
+
+    def test_multi_attrs(self):
+        assert hasattr(MultiGrapeXGBClassifier, 'predict')
+        assert hasattr(MultiGrapeXGBClassifier, 'load_model')
+        assert callable(getattr(MultiGrapeXGBClassifier, 'predict'))
+        assert callable(getattr(MultiGrapeXGBClassifier, 'load_model'))
+
+
+    def test_homepage_render(self):
+        client = TestClient(app)
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_predict_page_render(self):
+        client = TestClient(app)
+        response = client.get("/predict_page")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_predict_endpoint_validation(self):
+        client = TestClient(app)
+        # Verify validation error occurs with missing/bad input
+        response = client.post("/api/predict", json={"lat": "invalid_latitude"})
+        assert response.status_code == 422
