@@ -5,7 +5,7 @@ from data_fetcher import _fetch_from_public_apis
 from models.ml_model import *
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-
+from main import app
 
 class TestsClass:
 
@@ -53,7 +53,7 @@ class TestsClass:
 
 
     def test_homepage_render(self):
-        app = FastAPI(title="Viticulture Predictor")
+        # app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)
         response = client.get("/")
         print('response.status_code', response.status_code)
@@ -62,7 +62,7 @@ class TestsClass:
         assert "text/html" in response.headers["content-type"]
 
     def test_predict_page_render(self):
-        app = FastAPI(title="Viticulture Predictor")
+        # app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)
         response = client.get("/predict_page")
         print('response.status_code', response.status_code)
@@ -71,7 +71,7 @@ class TestsClass:
         assert "text/html" in response.headers["content-type"]
 
     def test_predict_endpoint_validation(self):
-        app = FastAPI(title="Viticulture Predictor")
+        # app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)
         # Verify validation error occurs with missing/bad input
         response = client.post("/api/predict", json={"lat": "invalid_latitude"})
