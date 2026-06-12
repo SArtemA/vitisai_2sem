@@ -1,14 +1,15 @@
-# VitiPredict / Viticulture Predictor
+# VitiPredict ML Extended
 
-**VitiPredict** — веб-приложение для анализа пригодности территории под выращивание винограда на основе координат, геопространственных данных и модели машинного обучения.
+**VitiPredict ML Extended** — расширенная версия веб-приложения для анализа пригодности территории под выращивание винограда и подбора подходящих сортов винограда на основе координат, геопространственных данных и моделей машинного обучения.
 
-Проект позволяет выбрать точку на карте, получить экологические характеристики участка, выполнить ML-прогноз пригодности территории и сохранить результат анализа в локальную SQLite-базу данных.
+Ветка `ML_extended` развивает базовую версию проекта: кроме бинарного прогноза пригодности участка, приложение также формирует рекомендации по сортам винограда и использует расширенный набор экологических признаков.
 
 ---
 
 ## Содержание
 
 - [Описание проекта](#описание-проекта)
+- [Отличия ветки ML_extended](#отличия-ветки-ml_extended)
 - [Основные возможности](#основные-возможности)
 - [Как работает система](#как-работает-система)
 - [Технологический стек](#технологический-стек)
@@ -18,8 +19,10 @@
 - [Настройка Google Earth Engine](#настройка-google-earth-engine)
 - [API](#api)
 - [База данных](#база-данных)
-- [ML-модель](#ml-модель)
-- [Миграция и обогащение данных](#миграция-и-обогащение-данных)
+- [ML-модели](#ml-модели)
+- [Экологические признаки](#экологические-признаки)
+- [Работа с моделями](#работа-с-моделями)
+- [Диагностика базы данных](#диагностика-базы-данных)
 - [Настройки проекта](#настройки-проекта)
 - [Возможные проблемы](#возможные-проблемы)
 - [Автор](#автор)
@@ -29,77 +32,85 @@
 
 ## Описание проекта
 
-**VitiPredict** — учебный проект, направленный на оценку пригодности географической точки для виноградарства.
+**VitiPredict ML Extended** — учебный проект, предназначенный для интеллектуальной оценки земельного участка под виноградарство.
 
-Приложение объединяет несколько частей:
+Пользователь выбирает точку на карте или вводит координаты вручную. После этого приложение:
 
-1. веб-интерфейс для работы с картой;
-2. backend на FastAPI;
-3. локальную SQLite-базу данных;
-4. модуль сбора экологических и геопространственных данных;
-5. модель машинного обучения на XGBoost.
+1. получает экологические и геопространственные признаки выбранной точки;
+2. определяет, подходит ли участок для виноградарства;
+3. при положительном результате формирует рекомендации по сортам винограда;
+4. сохраняет координаты, признаки и результат в локальную SQLite-базу данных.
 
-Пользователь вводит или выбирает координаты участка, после чего система получает набор признаков:
+Проект объединяет веб-интерфейс, FastAPI backend, SQLite-базу, Google Earth Engine и модели машинного обучения на XGBoost.
 
-- высоту над уровнем моря;
-- уклон поверхности;
-- экспозицию склона;
-- освещённость рельефа;
-- температуру;
-- количество осадков;
-- NDVI;
-- NDWI.
+---
 
-На основе этих данных ML-модель определяет, подходит ли выбранный участок для выращивания винограда.
+## Отличия ветки `ML_extended`
+
+Ветка `ML_extended` отличается от базовой версии проекта следующими изменениями:
+
+- структура проекта разделена на модули `databases/` и `models/`;
+- добавлен файл `requirements.txt`;
+- база данных находится в папке `databases/`;
+- используется база `vineyards_v3.db`;
+- расширен набор признаков для анализа участка;
+- добавлены признаки почвы, климата, растительности, ветра, солнечной радиации и fire risk;
+- добавлена бинарная модель пригодности участка;
+- добавлена multi-label модель для рекомендаций сортов винограда;
+- endpoint `/api/predict` возвращает не только `suitable`, но и `recommendations`;
+- локальный запуск выполняется на порту `8000`.
 
 ---
 
 ## Основные возможности
 
-- отображение карты с данными о виноградниках;
-- выбор точки для анализа;
-- ввод координат вручную;
-- получение экологических и геопространственных характеристик по координатам;
+- отображение карты с точками виноградников;
+- выбор координат на карте;
+- ручной ввод широты и долготы;
+- сбор расширенных экологических признаков;
 - прогноз пригодности участка под виноградник;
-- сохранение результатов анализа в SQLite-базу;
-- автоматическая загрузка или обучение ML-модели;
-- fallback-режим при недоступности Google Earth Engine;
-- возможность переобучения модели на обновлённой базе данных.
+- рекомендации по сортам винограда;
+- сохранение результатов в SQLite;
+- автоматическая миграция схемы базы при добавлении новых колонок;
+- диагностика базы данных через отдельный скрипт;
+- fallback-режим при недоступности Google Earth Engine.
 
 ---
 
 ## Как работает система
 
-Общий сценарий работы приложения:
+Общий сценарий работы:
 
 ```text
 Пользователь
    │
    ▼
-Веб-интерфейс
+HTML / Jinja2 интерфейс
    │
    ▼
 FastAPI backend
    │
    ├── получает координаты
-   ├── запрашивает экологические данные
-   ├── передаёт признаки в ML-модель
-   ├── получает прогноз
-   └── сохраняет результат в SQLite
+   ├── вызывает data_fetcher.py
+   ├── получает экологические признаки
+   ├── вызывает бинарную ML-модель
+   ├── если участок подходит — вызывает модель рекомендаций
+   ├── сохраняет результат в SQLite
+   └── возвращает JSON-ответ frontend-части
 ```
 
-Более подробно:
+Подробный сценарий:
 
-1. Пользователь открывает страницу приложения.
-2. Выбирает точку на карте или вводит координаты вручную.
-3. Frontend отправляет координаты на endpoint `/api/predict`.
-4. Backend вызывает модуль `data_fetcher.py`.
-5. Модуль пытается получить данные через Google Earth Engine.
-6. Если Google Earth Engine недоступен, используется fallback-режим.
-7. Полученные признаки передаются в `ml_model.py`.
-8. XGBoost-модель возвращает бинарный прогноз.
+1. Пользователь открывает приложение.
+2. На странице карты выбирает точку или вводит координаты вручную.
+3. Frontend отправляет POST-запрос на `/api/predict`.
+4. Backend получает координаты через Pydantic-модель `CoordinatesIn`.
+5. `data_fetcher.py` собирает признаки через Google Earth Engine.
+6. Если Google Earth Engine недоступен, возвращается fallback-набор нулевых значений.
+7. `BinSuitClassifier` определяет пригодность участка.
+8. Если участок подходит, `MultiGrapeXGBClassifier` формирует рейтинг сортов винограда.
 9. Результат сохраняется в таблицу `vineyard_features`.
-10. Пользователь получает ответ о пригодности участка.
+10. Frontend показывает пригодность, рекомендации и параметры среды.
 
 ---
 
@@ -122,18 +133,22 @@ FastAPI backend
 ### Data / Geo
 
 - Google Earth Engine
-- SRTM / terrain features
+- SRTM
+- ERA5-Land
+- OpenLandMap
+- ESA WorldCover
+- MODIS
 - TerraClimate
-- Landsat 8
-- NDVI
-- NDWI
 
 ### Machine Learning
 
 - XGBoost
 - scikit-learn
+- MultiOutputClassifier
+- StandardScaler
 - pandas
 - NumPy
+- joblib
 
 ### Database
 
@@ -146,8 +161,14 @@ FastAPI backend
 
 ```text
 .
-├── db_functions/
-│   └── db_manipulations.py
+├── databases/
+│   ├── __init__.py
+│   ├── database.py
+│   ├── db_inspector.py
+│   └── vineyards_v3.db
+│
+├── models/
+│   └── ml_model.py
 │
 ├── templates/
 │   ├── base.html
@@ -155,13 +176,13 @@ FastAPI backend
 │   └── predict.html
 │
 ├── data_fetcher.py
-├── database.py
 ├── main.py
-├── ml_model.py
+├── requirements.txt
 ├── run.py
-├── vineyards_v2.db
 └── .gitignore
 ```
+
+> Примечание: обученные модели должны находиться в подпапках внутри `models/`, если они были сгенерированы локально.
 
 ---
 
@@ -174,13 +195,13 @@ FastAPI backend
 Содержит:
 
 - инициализацию FastAPI;
-- подключение Jinja2-шаблонов;
-- frontend-маршруты;
-- backend API;
-- обработку координат;
-- вызов сбора данных;
-- вызов ML-модели;
-- сохранение результата в базу.
+- подключение шаблонов Jinja2;
+- загрузку ML-моделей при старте приложения;
+- маршруты frontend-страниц;
+- API для получения виноградников;
+- API для прогноза пригодности участка;
+- вызов рекомендаций сортов;
+- сохранение результатов анализа в базу данных.
 
 Основные маршруты:
 
@@ -195,7 +216,7 @@ POST /api/predict
 
 ### `run.py`
 
-Файл для локального запуска приложения.
+Файл локального запуска приложения.
 
 Он:
 
@@ -203,32 +224,50 @@ POST /api/predict
 - запускает Uvicorn;
 - открывает приложение в браузере;
 - использует хост `127.0.0.1`;
-- использует порт `5459`.
+- использует порт `8000`.
 
 После запуска приложение доступно по адресу:
 
 ```text
-http://127.0.0.1:5459
+http://127.0.0.1:8000
 ```
 
 ---
 
-### `database.py`
+### `data_fetcher.py`
 
-Файл с настройкой базы данных.
+Модуль получения экологических данных по координатам.
+
+Он использует Google Earth Engine и собирает признаки из нескольких источников:
+
+- SRTM — рельеф;
+- ERA5-Land — климат и погодные параметры;
+- OpenLandMap — почвенные признаки;
+- ESA WorldCover — тип земного покрова;
+- MODIS — индексы растительности и влажности;
+- TerraClimate — показатель засушливости / fire risk proxy.
+
+Если Google Earth Engine недоступен, используется fallback-функция `_fetch_from_public_apis`, которая возвращает нулевые значения и статусы `FAILED`.
+
+---
+
+### `databases/database.py`
+
+Модуль базы данных.
 
 Содержит:
 
-- подключение к SQLite;
-- создание SQLAlchemy engine;
-- создание сессий;
+- путь к SQLite-базе;
+- SQLAlchemy engine;
+- session factory;
 - ORM-модель `VineyardFeature`;
-- автоматическое создание таблиц.
+- автоматическое создание таблицы;
+- автоматическую миграцию схемы при появлении новых колонок.
 
-Используемая база:
+Используемая база данных:
 
 ```text
-vineyards_v2.db
+databases/vineyards_v3.db
 ```
 
 Основная таблица:
@@ -239,51 +278,90 @@ vineyard_features
 
 ---
 
-### `data_fetcher.py`
+### `databases/db_inspector.py`
 
-Модуль получения экологических данных по координатам.
+Скрипт для диагностики базы данных.
 
-При активном Google Earth Engine используются:
+Позволяет:
 
-- `USGS/SRTMGL1_003` для данных рельефа;
-- `ee.Terrain.products()` для уклона, экспозиции и hillshade;
-- `IDAHO_EPSCOR/TERRACLIMATE` для климатических данных;
-- `LANDSAT/LC08/C02/T1_L2` для расчёта NDVI и NDWI.
+- вывести структуру таблиц;
+- посмотреть колонки;
+- вывести несколько первых записей;
+- подсчитать количество подходящих и неподходящих участков;
+- получить базовую статистику по базе.
 
-Если Google Earth Engine недоступен, возвращается fallback-набор данных с нулевыми значениями и статусом `FAILED`.
+Запуск:
 
----
-
-### `ml_model.py`
-
-Модуль машинного обучения.
-
-Отвечает за:
-
-- обучение модели;
-- загрузку сохранённой модели;
-- подготовку признаков;
-- выполнение прогноза пригодности участка.
-
-Используемый алгоритм:
-
-```text
-XGBoost Classifier
-```
-
-Файл модели:
-
-```text
-xgboost_grape_model.json
+```bash
+python databases/db_inspector.py
 ```
 
 ---
 
-### `db_functions/db_manipulations.py`
+### `models/ml_model.py`
 
-Вспомогательный скрипт для работы с базой данных.
+Основной модуль машинного обучения.
 
-Предназначен для миграции, обновления и обогащения данных экологическими признаками.
+Содержит два класса:
+
+```python
+BinSuitClassifier
+```
+
+Бинарная модель, которая определяет пригодность участка:
+
+```text
+0 — участок не подходит
+1 — участок подходит
+```
+
+```python
+MultiGrapeXGBClassifier
+```
+
+Multi-label модель, которая формирует рейтинг подходящих сортов винограда.
+
+---
+
+### `templates/base.html`
+
+Базовый HTML-шаблон приложения.
+
+Используется как общий layout для страниц.
+
+---
+
+### `templates/map.html`
+
+Страница карты.
+
+Отображает карту предсказания зон для виноделия и загружает точки виноградников.
+
+---
+
+### `templates/predict.html`
+
+Страница анализа координат.
+
+Содержит:
+
+- выбор локации;
+- ввод широты и долготы;
+- кнопку анализа;
+- блок рекомендаций по сортам винограда;
+- блок условий окружающей среды.
+
+---
+
+### `requirements.txt`
+
+Файл зависимостей проекта.
+
+Позволяет установить все основные библиотеки одной командой:
+
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
@@ -296,13 +374,26 @@ git clone https://github.com/SArtemA/vitisai_2sem.git
 cd vitisai_2sem
 ```
 
-### 2. Создание виртуального окружения
+### 2. Переключение на ветку `ML_extended`
+
+```bash
+git checkout ML_extended
+```
+
+Если ветка ещё не загружена локально:
+
+```bash
+git fetch origin
+git checkout ML_extended
+```
+
+### 3. Создание виртуального окружения
 
 ```bash
 python -m venv venv
 ```
 
-### 3. Активация виртуального окружения
+### 4. Активация виртуального окружения
 
 Для Windows:
 
@@ -316,30 +407,28 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 4. Установка зависимостей
-
-В репозитории нет отдельного файла `requirements.txt`, поэтому зависимости можно установить вручную:
+### 5. Установка зависимостей
 
 ```bash
-pip install fastapi uvicorn sqlalchemy jinja2 pydantic xgboost pandas numpy scikit-learn earthengine-api requests
+pip install -r requirements.txt
 ```
 
-После установки рекомендуется создать `requirements.txt`:
+Если установка через `requirements.txt` не сработала, можно установить основные зависимости вручную:
 
 ```bash
-pip freeze > requirements.txt
+pip install fastapi uvicorn sqlalchemy pydantic pandas numpy scikit-learn xgboost joblib earthengine-api requests
 ```
 
-### 5. Запуск приложения
+### 6. Запуск приложения
 
 ```bash
 python run.py
 ```
 
-После запуска откройте в браузере:
+После запуска откройте:
 
 ```text
-http://127.0.0.1:5459
+http://127.0.0.1:8000
 ```
 
 При запуске через `run.py` браузер должен открыться автоматически.
@@ -348,42 +437,45 @@ http://127.0.0.1:5459
 
 ## Настройка Google Earth Engine
 
-Проект может использовать Google Earth Engine для получения реальных геопространственных данных.
+Проект использует Google Earth Engine для получения геопространственных и экологических данных.
 
-Перед использованием необходимо установить и авторизовать Earth Engine CLI:
+Установите Earth Engine API:
 
 ```bash
 pip install earthengine-api
+```
+
+Выполните авторизацию:
+
+```bash
 earthengine authenticate
 ```
 
-В коде используется проект:
+В `data_fetcher.py` используется проект:
 
 ```python
 ee.Initialize(project='pp-2-sem-grapes')
 ```
 
-Если у вас другой Google Cloud / Earth Engine project, замените значение `project` в `data_fetcher.py`.
-
-Пример:
+Если используется другой Google Cloud / Earth Engine project, замените значение `project`:
 
 ```python
 ee.Initialize(project='your-project-id')
 ```
 
-Если Google Earth Engine не настроен, приложение всё равно запустится, но данные будут получены из fallback-функции. В таком случае признаки будут заполнены нулями, а статусы будут иметь значение `FAILED`.
+Если Google Earth Engine недоступен, приложение продолжит работать, но экологические признаки будут заполнены нулевыми значениями. В этом случае качество прогноза и рекомендаций будет некорректным.
 
 ---
 
 ## API
 
-### Получение списка виноградников
+### Получение списка сохранённых точек
 
 ```http
 GET /api/vineyards
 ```
 
-Endpoint возвращает все записи из таблицы `vineyard_features`.
+Endpoint возвращает записи из таблицы `vineyard_features`.
 
 Пример ответа:
 
@@ -393,14 +485,20 @@ Endpoint возвращает все записи из таблицы `vineyard_
     "osm_id": 1,
     "lat": 44.6167,
     "lon": 33.5254,
-    "elevation_GEE_USGS_30m": 120.0,
-    "slope_GEE_USGS_30m": 8.2,
-    "aspect_GEE_USGS_30m": 180.0,
-    "hillshade_GEE_USGS_30m": 210.0,
+    "elevation": 120.0,
+    "slope": 8.2,
+    "aspect": 180.0,
+    "hillshade": 210.0,
     "mid_year_temp": 25.1,
     "precipitation": 420.0,
     "ndvi": 0.61,
     "ndwi": 0.18,
+    "solar_radiation": 15.4,
+    "humidity": 12.1,
+    "wind_speed": 3.2,
+    "soil_ph": 6.7,
+    "soil_organic_carbon": 18.0,
+    "fire_risk": -0.5,
     "is_suitable": true
   }
 ]
@@ -408,7 +506,7 @@ Endpoint возвращает все записи из таблицы `vineyard_
 
 ---
 
-### Прогноз пригодности участка
+### Прогноз пригодности участка и рекомендации сортов
 
 ```http
 POST /api/predict
@@ -430,29 +528,54 @@ POST /api/predict
   "suitable": true,
   "data_collected": {
     "elevation": 120.0,
-    "elevation_status": "GEE_SUCCESS",
     "slope": 8.2,
-    "slope_status": "GEE_SUCCESS",
     "aspect": 180.0,
-    "aspect_status": "GEE_SUCCESS",
     "hillshade": 210.0,
-    "hillshade_status": "GEE_SUCCESS",
     "mid_year_temp": 25.1,
     "precipitation": 420.0,
+    "humidity": 12.1,
+    "solar_radiation": 15.4,
+    "wind_speed": 3.2,
+    "evapotranspiration": 0.002,
+    "evi": 0.42,
+    "lai": 2.1,
+    "land_cover_type": 40,
+    "soil_ph": 6.7,
+    "soil_organic_carbon": 18.0,
+    "fire_risk": -0.5,
+    "winkler_index": 1650.0,
     "ndvi": 0.61,
-    "ndwi": 0.18
-  }
+    "ndwi": 0.18,
+    "elevation_status": "SUCCESS",
+    "slope_status": "SUCCESS",
+    "aspect_status": "SUCCESS",
+    "hillshade_status": "SUCCESS"
+  },
+  "recommendations": [
+    {
+      "grape": "arinto",
+      "score": 87.35
+    },
+    {
+      "grape": "mostosa",
+      "score": 76.12
+    }
+  ]
 }
 ```
+
+Если участок признан неподходящим, список `recommendations` может быть пустым.
 
 ---
 
 ## База данных
 
-Проект использует SQLite-базу:
+Проект использует SQLite.
+
+Путь к базе данных:
 
 ```text
-vineyards_v2.db
+databases/vineyards_v3.db
 ```
 
 Основная таблица:
@@ -470,34 +593,135 @@ vineyard_features
 | `lon` | Float | Долгота |
 | `created_at` | DateTime | Дата создания записи |
 | `updated_at` | DateTime | Дата обновления записи |
-| `elevation_GEE_USGS_30m` | Float | Высота над уровнем моря |
+| `elevation` | Float | Высота над уровнем моря |
 | `elevation_GEE_USGS_30m_status` | String | Статус получения высоты |
-| `slope_GEE_USGS_30m` | Float | Уклон поверхности |
+| `slope` | Float | Уклон поверхности |
 | `slope_GEE_USGS_30m_status` | String | Статус получения уклона |
-| `aspect_GEE_USGS_30m` | Float | Экспозиция склона |
+| `aspect` | Float | Экспозиция склона |
 | `aspect_GEE_USGS_30m_status` | String | Статус получения экспозиции |
-| `hillshade_GEE_USGS_30m` | Float | Освещённость рельефа |
+| `hillshade` | Float | Освещённость рельефа |
 | `hillshade_GEE_USGS_30m_status` | String | Статус получения hillshade |
-| `mid_year_temp` | Float | Средняя / сезонная температура |
+| `mid_year_temp` | Float | Средняя температура |
 | `precipitation` | Float | Количество осадков |
 | `ndvi` | Float | Индекс растительности |
 | `ndwi` | Float | Индекс влажности |
-| `is_suitable` | Boolean | Целевая переменная пригодности |
+| `solar_radiation` | Float | Солнечная радиация |
+| `humidity` | Float | Влажность / proxy-показатель |
+| `wind_speed` | Float | Скорость ветра |
+| `evapotranspiration` | Float | Эвапотранспирация |
+| `evi` | Float | Enhanced Vegetation Index |
+| `lai` | Float | Leaf Area Index |
+| `land_cover_type` | Integer | Тип земного покрова |
+| `soil_ph` | Float | pH почвы |
+| `soil_organic_carbon` | Float | Органический углерод в почве |
+| `fire_risk` | Float | Proxy-показатель засушливости / fire risk |
+| `is_suitable` | Boolean | Признак пригодности участка |
+
+> В коде сбора данных также рассчитывается `winkler_index`. Если этот признак используется в ML-модели, стоит добавить соответствующую колонку в ORM-модель и базу данных.
 
 ---
 
-## ML-модель
+## ML-модели
 
-Для классификации используется `XGBClassifier`.
+В ветке `ML_extended` используются две ML-модели.
 
-Модель решает бинарную задачу:
+---
 
-```text
-0 — участок не подходит
-1 — участок подходит
+### 1. Бинарная модель пригодности участка
+
+Класс:
+
+```python
+BinSuitClassifier
 ```
 
-### Используемые признаки
+Назначение:
+
+```text
+Определить, подходит ли участок для виноградарства.
+```
+
+Целевая переменная:
+
+```text
+is_suitable
+```
+
+Модель:
+
+```text
+XGBClassifier
+```
+
+Ожидаемые файлы модели:
+
+```text
+models/trained_models_bin/xgboost_bin_model.json
+models/trained_models_bin/xgboost_bin_model_scaler.pkl
+```
+
+---
+
+### 2. Multi-label модель рекомендаций сортов
+
+Класс:
+
+```python
+MultiGrapeXGBClassifier
+```
+
+Назначение:
+
+```text
+Сформировать рейтинг сортов винограда по вероятности пригодности.
+```
+
+Модель:
+
+```text
+MultiOutputClassifier + XGBClassifier
+```
+
+Целевые сорта:
+
+```text
+arnsburger
+arinto
+mostosa
+abbuoto
+abouriou
+acitana
+```
+
+Ожидаемые файлы модели:
+
+```text
+models/trained_models_multi/multi_output_xgb_model.joblib
+models/trained_models_multi/scaler.joblib
+models/trained_models_multi/feature_names.joblib
+models/trained_models_multi/target_names.joblib
+```
+
+Результат работы модели:
+
+```json
+[
+  {
+    "grape": "arinto",
+    "score": 87.35
+  },
+  {
+    "grape": "mostosa",
+    "score": 76.12
+  }
+]
+```
+
+---
+
+## Экологические признаки
+
+Ветка `ML_extended` использует расширенный набор признаков:
 
 ```text
 elevation
@@ -508,76 +732,127 @@ mid_year_temp
 precipitation
 ndvi
 ndwi
+solar_radiation
+humidity
+wind_speed
+evapotranspiration
+evi
+lai
+land_cover_type
+soil_ph
+soil_organic_carbon
+fire_risk
+winkler_index
 ```
 
-### Целевая переменная
+### Описание признаков
 
-```text
-is_suitable
-```
+| Признак | Описание |
+|---|---|
+| `elevation` | Высота над уровнем моря |
+| `slope` | Уклон поверхности |
+| `aspect` | Направление склона |
+| `hillshade` | Освещённость рельефа |
+| `mid_year_temp` | Средняя температура |
+| `precipitation` | Осадки |
+| `ndvi` | Индекс растительности |
+| `ndwi` | Индекс влажности |
+| `solar_radiation` | Солнечная радиация |
+| `humidity` | Влажность / температурный proxy |
+| `wind_speed` | Скорость ветра |
+| `evapotranspiration` | Эвапотранспирация |
+| `evi` | Улучшенный индекс растительности |
+| `lai` | Индекс листовой поверхности |
+| `land_cover_type` | Тип земного покрова |
+| `soil_ph` | Кислотность почвы |
+| `soil_organic_carbon` | Органический углерод в почве |
+| `fire_risk` | Proxy риска засухи / пожара |
+| `winkler_index` | Сумма активных температур для виноградарства |
 
-### Обучение
+---
 
-Модель обучается на данных из таблицы `vineyard_features`.
+## Работа с моделями
 
-При обучении выполняются следующие шаги:
+### Загрузка моделей
 
-1. чтение данных из SQLite;
-2. выбор нужных признаков;
-3. очистка и преобразование данных;
-4. заполнение пропусков нулями;
-5. разделение выборки на train/test;
-6. обучение XGBoost;
-7. подбор гиперпараметров через `GridSearchCV`;
-8. вывод accuracy, classification report и confusion matrix;
-9. сохранение модели в файл.
-
-Файл обученной модели:
-
-```text
-xgboost_grape_model.json
-```
-
-### Ручное обучение модели
-
-Можно запустить обучение из Python:
+При старте приложения в `main.py` создаются экземпляры:
 
 ```python
-import ml_model
-
-ml_model.train_model()
+suit_class = BinSuitClassifier()
+variety_model = MultiGrapeXGBClassifier()
 ```
 
-Или временно добавить вызов в отдельный скрипт:
+Если файлы моделей отсутствуют, предсказания или рекомендации могут быть недоступны.
+
+---
+
+### Обучение бинарной модели
+
+Пример ручного обучения из Python:
 
 ```python
-from ml_model import train_model
+import pandas as pd
+from models.ml_model import BinSuitClassifier
 
-train_model()
+df = pd.read_csv("your_dataset.csv")
+
+model = BinSuitClassifier()
+model.train(df, use_grid_search=False, device="cpu")
 ```
 
 ---
 
-## Миграция и обогащение данных
+### Обучение multi-label модели сортов
 
-Для переноса данных и добавления экологических признаков используется скрипт:
+```python
+import pandas as pd
+from models.ml_model import MultiGrapeXGBClassifier
 
-```bash
-python db_functions/db_manipulations.py
+df = pd.read_csv("your_dataset.csv")
+
+model = MultiGrapeXGBClassifier()
+model.train(df, use_grid_search=False, device="cpu")
 ```
 
-Сценарий работы скрипта:
+---
 
-1. читает существующие координаты;
-2. получает дополнительные признаки;
-3. формирует обновлённый набор данных;
-4. сохраняет результат в новую базу.
+### Использование GPU
+
+В методах `train` есть параметр:
+
+```python
+device="cuda"
+```
+
+Пример:
+
+```python
+model.train(df, use_grid_search=False, device="cuda")
+```
+
+Для этого требуется корректно установленная версия XGBoost с поддержкой CUDA и подходящие драйверы.
+
+---
+
+## Диагностика базы данных
+
+Для проверки базы используется:
+
+```bash
+python databases/db_inspector.py
+```
+
+Скрипт выводит:
+
+- список таблиц;
+- список колонок;
+- количество записей;
+- количество подходящих и неподходящих участков;
+- базовую статистику.
 
 ---
 
 ## Настройки проекта
-
-Сейчас ключевые настройки находятся прямо в коде.
 
 ### Хост и порт
 
@@ -589,33 +864,24 @@ run.py
 
 ```python
 _HOST = '127.0.0.1'
-_PORT = 5459
+_PORT = 8000
 ```
+
+---
 
 ### База данных
 
 Файл:
 
 ```text
-database.py
+databases/database.py
 ```
 
 ```python
-SQLALCHEMY_DATABASE_URL = "sqlite:///./vineyards_v2.db"
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'vineyards_v3.db')}"
 ```
 
-### Путь к модели
-
-Файл:
-
-```text
-ml_model.py
-```
-
-```python
-MODEL_PATH = "xgboost_grape_model.json"
-DB_PATH = "vineyards_v2.db"
-```
+---
 
 ### Google Earth Engine project
 
@@ -631,7 +897,30 @@ ee.Initialize(project='pp-2-sem-grapes')
 
 ---
 
+### Пути к моделям
+
+Файл:
+
+```text
+models/ml_model.py
+```
+
+Бинарная модель:
+
+```text
+models/trained_models_bin/
+```
+
+Multi-label модель:
+
+```text
+models/trained_models_multi/
+```
+
+---
+
 ## Возможные проблемы
+
 ### Google Earth Engine не активен
 
 В консоли может появиться сообщение:
@@ -644,7 +933,7 @@ GEE Not Active
 
 - не выполнена авторизация;
 - нет доступа к проекту Google Earth Engine;
-- указан неверный `project`;
+- указан неверный project ID;
 - отсутствует интернет-соединение.
 
 Решение:
@@ -653,36 +942,60 @@ GEE Not Active
 earthengine authenticate
 ```
 
-Также проверьте значение `project` в `data_fetcher.py`.
+Проверьте значение `project` в `data_fetcher.py`.
+
+---
+
+### Возвращаются только нулевые признаки
+
+Это означает, что приложение перешло в fallback-режим.
+
+Возможные причины:
+
+- Google Earth Engine недоступен;
+- ошибка авторизации;
+- ошибка доступа к dataset;
+- точка вне зоны покрытия отдельных источников;
+- ошибка сетевого соединения.
+
+В таком режиме прогнозы могут быть некорректными.
 
 ---
 
 ### Модель не найдена
 
-Если файла `xgboost_grape_model.json` нет, приложение попытается обучить модель автоматически при прогнозе.
+Ожидаемые файлы бинарной модели:
 
-Возможные причины ошибки:
+```text
+models/trained_models_bin/xgboost_bin_model.json
+models/trained_models_bin/xgboost_bin_model_scaler.pkl
+```
 
-- отсутствует `vineyards_v2.db`;
-- в базе недостаточно данных;
-- в таблице нет нужных колонок;
-- в целевой переменной только один класс.
+Ожидаемые файлы модели рекомендаций:
 
-Решение:
+```text
+models/trained_models_multi/multi_output_xgb_model.joblib
+models/trained_models_multi/scaler.joblib
+models/trained_models_multi/feature_names.joblib
+models/trained_models_multi/target_names.joblib
+```
 
-1. проверьте наличие базы данных;
-2. проверьте таблицу `vineyard_features`;
-3. убедитесь, что есть колонка `is_suitable`;
-4. запустите обучение вручную.
+Если этих файлов нет, необходимо обучить модели или добавить сохранённые артефакты модели в проект.
 
 ---
 
-### Ошибка при запуске FastAPI
+### Ошибка при установке зависимостей
 
-Проверьте, что установлены зависимости:
+Попробуйте обновить `pip`:
 
 ```bash
-pip install fastapi uvicorn sqlalchemy jinja2 pydantic
+python -m pip install --upgrade pip
+```
+
+Затем повторите установку:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ---
@@ -695,20 +1008,40 @@ pip install fastapi uvicorn sqlalchemy jinja2 pydantic
 pip install xgboost
 ```
 
-Если ошибка связана с данными, проверьте, что признаки можно привести к числовому типу.
+Если используется GPU, проверьте CUDA, драйверы и совместимость XGBoost.
 
 ---
 
-### Прогноз всегда возвращает одинаковый результат
+### Ошибка из-за `winkler_index`
+
+В `models/ml_model.py` признак `winkler_index` входит в список `FEATURES`, а `data_fetcher.py` его возвращает. При этом в ORM-модели базы может отсутствовать колонка `winkler_index`.
+
+Решение:
+
+1. добавить колонку `winkler_index` в модель `VineyardFeature`;
+2. выполнить автоматическую миграцию;
+3. убедиться, что значение сохраняется в базе при создании новой записи.
+
+Пример поля:
+
+```python
+winkler_index = Column(Float)
+```
+
+---
+
+### Прогноз всегда одинаковый
 
 Возможные причины:
 
-- fallback-режим возвращает только нули;
-- модель обучена на несбалансированных данных;
-- в обучающей выборке мало примеров;
-- признаки не имеют достаточной вариативности.
+- признаки возвращаются нулями из fallback-режима;
+- модель обучена на малом наборе данных;
+- в обучающей выборке несбалансированные классы;
+- scaler обучен на другой структуре признаков;
+- порядок признаков при обучении и прогнозе отличается.
 
 ---
+
 
 ## Пример полного сценария запуска
 
@@ -716,10 +1049,12 @@ pip install xgboost
 git clone https://github.com/SArtemA/vitisai_2sem.git
 cd vitisai_2sem
 
+git checkout ML_extended
+
 python -m venv venv
 venv\Scripts\activate
 
-pip install fastapi uvicorn sqlalchemy jinja2 pydantic xgboost pandas numpy scikit-learn earthengine-api requests
+pip install -r requirements.txt
 
 earthengine authenticate
 
@@ -729,14 +1064,15 @@ python run.py
 После запуска:
 
 ```text
-http://127.0.0.1:5459
+http://127.0.0.1:8000
 ```
 
 ---
 
 ## Автор
 
-**Дописать имена**
+
+**Так же не забыть бы доьавить имена и ссылки**
 
 GitHub: [https://github.com/SArtemA](https://github.com/SArtemA)
 
@@ -744,8 +1080,7 @@ GitHub: [https://github.com/SArtemA](https://github.com/SArtemA)
 
 ## Лицензия
 
-А НУЖНА ЛИ ???
-
+А НУЖНА ЛИ???????
 Лицензия в репозитории не указана.
 
 Перед использованием проекта в коммерческих или публичных целях рекомендуется добавить файл `LICENSE`.
