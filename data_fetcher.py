@@ -23,7 +23,7 @@ def fetch_environmental_data(lat: float, lon: float) -> dict:
 
 def _fetch_from_gee(lat: float, lon: float) -> dict:
     point = ee.Geometry.Point([lon, lat])
-    date_range = {'start': '2023-01-01', 'end': '2023-12-31'}
+    date_range = {'start': '2023-05-10', 'end': '2023-09-15'}
 
     # Helper function to query GEE collections safely
     def get_properties(image, scale):
@@ -141,19 +141,6 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
     soil_sand_val = soil_sand_props.get('b60', 0.0)
     soil_clay_val = soil_clay_props.get('b60', 0.0)
     soil_class_val = soil_class_props.get('b60', 0.0)
-    # 1	    Cl
-    # 2	    SiCl
-    # 3	    SaCl
-    # 4	    ClLo
-    # 5	    SiClLo
-    # 6	    SaClLo
-    # 7	    Lo
-    # 8	    SiLo
-    # 9	    SaLo
-    # 10	Si
-    # 11	LoSa
-    # 12	Sa
-
 
     return {
         "elevation": terrain.get('elevation', 0.0), #
@@ -179,7 +166,6 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
         "slope_status": "SUCCESS" if 'slope' in terrain else "FAILED",
         "aspect_status": "SUCCESS" if 'aspect' in terrain else "FAILED",
         "hillshade_status": "SUCCESS" if 'hillshade' in terrain else "FAILED",
-        # --- Added Parameters ---
         "fpar": fpar_val,
         "surface_pressure": surface_pressure * 1000, # KPa
         "potential_evaporation_sum": potential_evaporation_sum * 1000,
@@ -223,13 +209,13 @@ def _fetch_from_public_apis(lat: float, lon: float) -> dict:
         "ndwi": 0.0,
 
         "fpar": 0.0,
-        "surface_pressure": 101325.0,
+        "surface_pressure": 0,
         "potential_evaporation_sum": 0.0,
         "surface_sensible_heat_flux_sum": 0.0,
         "volumetric_soil_water_layer_3": 0.0,
         "skin_reservoir_content": 0.0,
-        "soil_temperature_level_3": 288.15,
-        "skin_temperature": 288.15,
+        "soil_temperature_level_3": 0,
+        "skin_temperature": 0,
         "soil_bulk_density": 0.0,
         "soil_sand": 0.0,
         "soil_clay": 0.0,
