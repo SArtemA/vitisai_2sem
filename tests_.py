@@ -16,6 +16,15 @@ class TestsClass:
 
         assert path1.exists() and path2.exists() and path3.exists(), f"Expected fils at templates were not found."
 
+
+    def test_db_models_not_exists(self):
+
+        path4 = Path(Path().cwd(), 'databases', 'vineyards_v3.db')
+        path5 = Path(Path().cwd(), 'models', 'trained_models_bin')
+        path6 = Path(Path().cwd(), 'models', 'trained_models_mul')
+
+        assert not path4.exists() and not path5.exists() and not path6.exists(), f"Expected fils at templates were not found."
+
     def test_fetch_type(self):
         assert type(fetch_environmental_data(lat=1.1, lon=1.1)) == dict, f"Expected type dict to be returned"
 
