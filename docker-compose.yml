@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: vitis_ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mounts host directory to container so SQLite databases are persistent
+      - ./databases:/pm_2_sem/databases
+      # Mounts host models directory so you can update ML artifacts without rebuilding
+      - ./models:/pm_2_sem/models
+    restart: always
