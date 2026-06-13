@@ -1,4 +1,4 @@
-name: lintntest
+name: lint-n-test-n-doc
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  test_and_lint:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,3 +39,19 @@ jobs:
     - name: Run Tests
       run: |
         pytest tests_.py/ -v
+
+    # --- Step 4: Docker Build Verification ---
+    - name: Set up Docker
+      # Buildx is needed for advanced caching and multi-platform validation
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build and Validate Docker Image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false  # Dry-run validation only (does not push to registry)
+        tags: vitis_ai:latest
+        # Speeds up future CI builds using GitHub Actions native cache
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
