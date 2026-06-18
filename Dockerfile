@@ -9,6 +9,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -q --upgrade pip && \
     pip install --no-cache-dir -q -r requirements.txt
 
+
 COPY . .
 
 EXPOSE 8000
