@@ -1,75 +1,108 @@
-# ml_model.py
-import os
-import pandas as pd
 import xgboost as xgb
-import joblib
-from pathlib import Path
+import pandas as pd
+import numpy as np
+import os
+import sqlite3
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-# Пути должны совпадать с теми, что использует ViticulturePipeline
 MODEL_PATH = "xgboost_grape_model.json"
-SCALER_PATH = "xgboost_grape_model_scaler.pkl"
+DB_PATH = "vineyards_v2.db"
 
-# Глобальные объекты для хранения загруженных артефактов
-model = None
-scaler = None
-median_values = None
-feature_columns = [
-    'elevation_GEE_USGS_30m',
-    'slope_GEE_USGS_30m',
-    'aspect_GEE_USGS_30m',
-    'hillshade_GEE_USGS_30m',
-    'mid_year_temp',
-    'precipitation',
-    'ndvi',
-    'ndwi'
-]
 
-def load_model_if_exists():
-    """Загружает модель и scaler, если файлы существуют. В противном случае model остаётся None."""
-    global model, scaler, median_values
-    if not os.path.exists(MODEL_PATH):
-        print(f"Файл модели {MODEL_PATH} не найден.")
+def train_model():
+    """Builds a model from the enriched V2 database."""
+    print("AI: Training pipeline triggered...")
+
+    if not os.path.exists(DB_PATH):
+        print("AI: Database not found. Cannot train.")
         return
 
-    # Загружаем модель XGBoost
+    conn = sqlite3.connect(DB_PATH)
+    # Ensure we only train on records that actually have the new data
+    query = """
+    SELECT 
+        elevation_GEE_USGS_30m as elevation, 
+        slope_GEE_USGS_30m as slope, 
+        aspect_GEE_USGS_30m as aspect, 
+        hillshade_GEE_USGS_30m as hillshade, 
+        mid_year_temp, precipitation, ndvi, ndwi, is_suitable 
+    FROM vineyard_features 
+    WHERE mid_year_temp IS NOT NULL
+    """
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+
+    # CLEANING DATA FOR XGBOOST (Fixes your previous error)
+    X = df.drop(columns=['is_suitable'])
+    y = df['is_suitable'].astype(int)
+
+    # Force everything to float and fill empty values with 0
+    X = X.apply(pd.to_numeric, errors='coerce').fillna(0).astype(float)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    model = xgb.XGBClassifier(
+        objective='binary:logistic',
+        eval_metric='logloss',
+        use_label_encoder=False,
+        random_state=42
+    )
+
+    param_grid = {
+        'n_estimators': [100, 200, 300],
+        'learning_rate': [0.01, 0.05, 0.1],
+        'max_depth': [3, 5, 7],
+        'subsample': [0.7, 0.8, 1.0],
+        'colsample_bytree': [0.7, 0.8, 1.0],
+        'gamma': [0, 0.1, 0.2],
+        'reg_alpha': [0, 0.001, 0.1],
+        'reg_lambda': [1, 1.5, 2]
+    }
+
+    grid_search = GridSearchCV(estimator=model, param_grid=param_grid,
+                               scoring='accuracy', cv=3, verbose=1, n_jobs=-1)
+
+    print("grid_search")
+    grid_search.fit(X_train, y_train)
+
+    # Get the best model and parameters
+    best_model = grid_search.best_estimator_
+    # best_params = grid_search.best_params_
+
+    y_pred = best_model.predict(X_test)
+    # Get probabilities for the positive class (class 1)
+    # y_pred_proba = best_model.predict_proba(X_test)[:, 1]
+
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f"accuracy: {accuracy:.4f}")
+
+    print("classification_report")
+    print(classification_report(y_test, y_pred))
+
+    print("confusion_matrix")
+    print(confusion_matrix(y_test, y_pred))
+
+    # model.fit(X, y)
+    best_model.save_model(MODEL_PATH)
+
+    print(f"✅ AI: Model successfully trained on {len(df)} samples and saved.")
+
+
+def predict_suitability(features: dict) -> bool:
+    # AUTO-TRAIN LOGIC
+    if not os.path.exists(MODEL_PATH):
+        print("AI: Model file not found. Auto-training now...")
+        train_model()
+
     model = xgb.XGBClassifier()
     model.load_model(MODEL_PATH)
 
-    # Загружаем scaler
-    if os.path.exists(SCALER_PATH):
-        scaler = joblib.load(SCALER_PATH)
-    else:
-        raise FileNotFoundError(f"Scaler {SCALER_PATH} не найден, модель неполная.")
+    # Mapping frontend keys to model keys
+    cols = ['elevation', 'slope', 'aspect', 'hillshade', 'mid_year_temp', 'precipitation', 'ndvi', 'ndwi']
+    input_values = [float(features.get(c, 0)) for c in cols]
 
-    # Медианы заполнения (если не сохраняли, можно вычислить на этапе обучения и сохранить отдельно,
-    # но для упрощения здесь можно передавать в функцию predict_suitability уже заполненные данные).
-    # В реальном проекте медианы нужно либо сохранить в отдельный файл, либо встроить в пайплайн.
-    # Пока оставим None, требуя, чтобы в predict_suitability приходили уже чистые данные.
-    median_values = None
-    print("Модель и scaler загружены.")
-
-def predict_suitability(env_data: dict) -> bool:
-    """
-    Предсказание пригодности по словарю с признаками.
-    env_data должен содержать ключи, соответствующие feature_columns.
-    """
-    global model, scaler, median_values
-    if model is None:
-        raise RuntimeError("Модель не загружена.")
-
-    # Преобразуем словарь в DataFrame
-    X = pd.DataFrame([env_data], columns=feature_columns)
-
-    # Заполняем пропуски (если медианы сохранены)
-    if median_values is not None:
-        X = X.fillna(median_values)
-
-    # Масштабируем
-    if scaler is not None:
-        X_scaled = pd.DataFrame(scaler.transform(X), columns=X.columns)
-    else:
-        X_scaled = X
-
-    # Предсказание
-    pred = model.predict(X_scaled)[0]
-    return bool(pred)
+    df_input = pd.DataFrame([input_values], columns=cols)
+    prediction = model.predict(df_input)
+    return bool(prediction[0])

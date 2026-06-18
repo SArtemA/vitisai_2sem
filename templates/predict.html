@@ -23,39 +23,45 @@
 
     <!-- Left Column: Interactive Map -->
     <div class="col-12 col-lg-7 mb-4 mb-lg-0 d-flex flex-column px-2 px-lg-3">
-        <h4 class="mb-3 text-dark">1. Pick a Location</h4>
+        <div class="d-flex align-items-center mb-3">
+            <span class="badge bg-primary rounded-circle me-2" style="width: 32px; height: 32px; line-height: 24px;">1</span>
+            <h4 class="mb-0 fw-bold">Выберите местоположение</h4>
+        </div>
         <div id="picker-map"></div>
         <div class="text-muted mt-2 small">
-            <strong>Tip:</strong> Click anywhere on the map to automatically fill in the coordinates.
+            <strong>Совет:</strong> Щелкните в любом месте карты, чтобы автоматически ввести координаты.
         </div>
     </div>
 
     <!-- Right Column: Form & Results -->
     <div class="col-12 col-lg-5 d-flex flex-column px-2 px-lg-3">
-        <h4 class="mb-3 text-dark">2. Analyze Suitability</h4>
+        <div class="d-flex align-items-center mb-3">
+            <span class="badge bg-primary rounded-circle me-2" style="width: 32px; height: 32px; line-height: 24px;">2</span>
+            <h4 class="mb-0 fw-bold">Анализ пригодности</h4>
+        </div>
         <div class="card shadow-lg border-0 rounded-lg">
             <div class="card-header bg-primary text-white text-center py-3">
-                <h5 class="mb-0">Coordinates</h5>
+                <h5 class="mb-0">Координаты</h5>
             </div>
             <div class="card-body p-4">
                 <form id="predictForm">
                     <div class="row">
                         <div class="col-6 mb-4">
-                            <label class="form-label fw-bold">Latitude</label>
+                            <label class="form-label fw-bold">Широта</label>
                             <input type="number" step="any" class="form-control" id="lat" required placeholder="e.g., 44.8016">
                         </div>
                         <div class="col-6 mb-4">
-                            <label class="form-label fw-bold">Longitude</label>
+                            <label class="form-label fw-bold">Долгота</label>
                             <input type="number" step="any" class="form-control" id="lon" required placeholder="e.g., -0.6040">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow-sm">Analyze & Predict</button>
+                    <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow-sm">Анализировать и прогнозировать</button>
                 </form>
 
                 <div id="resultBox" class="mt-4 p-3 rounded" style="display: none; background-color: #f8f9fa; border: 1px solid #dee2e6;">
                     <h4 id="predictionResult" class="text-center mb-3"></h4>
                     <hr>
-                    <h6 class="text-muted fw-bold mb-2">Collected Environmental Data:</h6>
+                    <h6 class="text-muted fw-bold mb-2">Собранные экологические данные:</h6>
                     <ul class="list-group list-group-flush" id="dataList">
                         <!-- Data will be injected here -->
                     </ul>
@@ -124,27 +130,27 @@
             resultBox.style.display = 'block';
 
             if (result.suitable) {
-                title.innerHTML = "🍇 Excellent! Land is SUITABLE.";
+                title.innerHTML = "🍇 Превосходно! Земля ПОДХОДЯЩАЯ.";
                 title.className = "text-success text-center mb-3";
                 resultBox.style.borderColor = "#28a745";
                 if(currentMarker) currentMarker.bindPopup("<b>Suitable</b>").openPopup();
             } else {
-                title.innerHTML = "❌ Poor conditions. NOT SUITABLE.";
+                title.innerHTML = "❌ Плохие условия. НЕ ПОДХОДИТ.";
                 title.className = "text-danger text-center mb-3";
                 resultBox.style.borderColor = "#dc3545";
-                if(currentMarker) currentMarker.bindPopup("<b>Not Suitable</b>").openPopup();
+                if(currentMarker) currentMarker.bindPopup("<b>Не подходит</b>").openPopup();
             }
 
             list.innerHTML = `
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Mid-Year Temp:</b> <span>${result.data_collected.mid_year_temp} °C</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Precipitation:</b> <span>${result.data_collected.precipitation} mm</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Elevation:</b> <span>${result.data_collected.elevation} m</span></li>
-                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Frost Risk:</b> <span>${result.data_collected.frost_risk}</span></li>
+                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Температура в середине года:</b> <span>${result.data_collected.mid_year_temp} °C</span></li>
+                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Осадков:</b> <span>${result.data_collected.precipitation} mm</span></li>
+                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Высота:</b> <span>${result.data_collected.elevation} m</span></li>
+                <li class="list-group-item bg-transparent d-flex justify-content-between"><b>Риск замерзания:</b> <span>${result.data_collected.frost_risk}</span></li>
                 <li class="list-group-item bg-transparent d-flex justify-content-between"><b>NDVI:</b> <span>${result.data_collected.ndvi}</span></li>
                 <li class="list-group-item bg-transparent d-flex justify-content-between"><b>NDWI:</b> <span>${result.data_collected.ndwi}</span></li>
             `;
         } catch (error) {
-            alert("An error occurred while fetching predictions.");
+            alert("При выборке прогнозов произошла ошибка.");
         } finally {
             btn.innerText = "Analyze & Predict";
             btn.disabled = false;
