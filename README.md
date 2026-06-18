@@ -7,6 +7,10 @@
 
 ---
 
+<video src="https://github.com/user-attachments/assets/19bfd6a6-4d5a-494a-beaf-c39e77eee0c5" width="100%" controls></video>
+
+---
+
 ## Содержание
 
 - [Описание проекта](#описание-проекта)
