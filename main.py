@@ -73,6 +73,7 @@ def get_vineyards(db: Session = Depends(database.get_db)):
     return vineyards   # FastAPI автоматически сериализует благодаря response_model
 
 
+
 @app.post("/api/predict")
 def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
     # 1. Проверяем, загружена ли модель
