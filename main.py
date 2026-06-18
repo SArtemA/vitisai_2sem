@@ -59,6 +59,7 @@ def get_vineyards(db: Session = Depends(database.get_db)):
     return vineyards
 
 
+
 @app.post("/api/predict")
 def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
     if suit_class is None:
