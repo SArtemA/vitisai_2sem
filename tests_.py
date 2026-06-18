@@ -93,6 +93,7 @@ class TestsClass:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
+
     def test_predict_endpoint_validation(self):
         # app = FastAPI(title="Viticulture Predictor")
         client = TestClient(app)

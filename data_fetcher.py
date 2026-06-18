@@ -47,6 +47,7 @@ def _fetch_from_gee(lat: float, lon: float) -> dict:
         .filterDate(date_range['start'], date_range['end']).mean()
     weather_data = get_properties(era5, 30)
 
+
     # 3. Soil Data (OpenLandMap)
     soil_ph_img = ee.Image("OpenLandMap/SOL/SOL_PH-H2O_USDA-4C1A2A_M/v02").select('b60')
     soil_soc_img = ee.Image("OpenLandMap/SOL/SOL_ORGANIC-CARBON_USDA-6A1C_M/v02").select('b60')

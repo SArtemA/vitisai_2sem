@@ -48,6 +48,7 @@ class VineyardFeature(Base):
     soil_organic_carbon = Column(Float)
     fire_risk = Column(Float)
 
+
     is_suitable = Column(Boolean, default=True)
     # --- New GEE Parameters (Expanded) ---
     fpar = Column(Float)

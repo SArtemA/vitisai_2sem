@@ -6,8 +6,9 @@ WORKDIR /pm_2_sem
 COPY requirements.txt ./
 
 # Install dependencies without caching pip files to keep image size small
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -q --upgrade pip && \
+    pip install --no-cache-dir -q -r requirements.txt
+
 
 COPY . .
 

@@ -22,7 +22,7 @@ jobs:
 
     - name: Install Requirements
       run: |
-        python -m pip install --upgrade pip
+        python -m pip install -q --upgrade pip
         pip install -q -r requirements.txt 
 
     - name: Lint with flake8 (Critical Errors Only)
@@ -30,6 +30,7 @@ jobs:
         # Stop the build if there are Python syntax errors (E9, F7) or undefined names (F82)
         # E9: Syntax/Runtime, F63: Comparison anomalies, F7: Syntax anomalies, F82: Undefined name errors
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
 
     - name: Lint with flake8 (Style Warnings)
       run: |

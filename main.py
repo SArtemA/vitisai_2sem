@@ -43,6 +43,7 @@ class CoordinatesIn(BaseModel):
 
 
 
+
 @app.get("/", response_class=HTMLResponse)
 async def map_page(request: Request):
     return templates.TemplateResponse(request=request, name="map.html")

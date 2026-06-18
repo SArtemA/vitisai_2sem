@@ -11,6 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from databases.database import Base, engine, VineyardFeature
 
 
+
 def print_db_structure():
     """Print the database structure (tables and columns)"""
     inspector = inspect(engine)
