@@ -9,10 +9,12 @@ import sys
 import json
 import multiprocessing
 from main import app  # IMPORTANT: Import the app directly instead of using a string
+import warnings
 
+warnings.filterwarnings('ignore')
 
 _HOST = '127.0.0.1'
-_PORT = 5459
+_PORT = 8000
 _LINK = f'http://{_HOST}:{_PORT}'
 
 
@@ -37,7 +39,7 @@ if __name__ == "__main__":
     except Exception as run_e:
         print('run_e', run_e)
     finally:
-        print('finally')
+        print('finally some rest')
         # try:
         #     shutil.rmtree(Path('tmp'), ignore_errors=True)
 
