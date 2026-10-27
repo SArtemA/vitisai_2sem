@@ -32,3 +32,6 @@
 /databases/grapes_annotated_v2.db
 /databases/grapes_annotated_v2.db
 
+# basic
+.venv
+*/__pycache__
