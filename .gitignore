@@ -39,3 +39,6 @@ __pycache__
 
 #db
 vineyards_*
+
+#датасет, локально работаю
+datasets/*

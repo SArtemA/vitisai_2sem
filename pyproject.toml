@@ -3,7 +3,10 @@ name = "vitisai-2sem"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "We (some timse need edit)"}
+    { name = "Бакилин Михаил Андреевич" },
+    { name = "Елькин Лев Олегович" },
+    { name = "Саттаров Артем Альбертович" },
+    { name = "Хакимзянов Илья Эдуардович" }
 ]
 readme = "README.md"
 requires-python = ">=3.12"
