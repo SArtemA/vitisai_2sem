@@ -47,13 +47,44 @@ class CoordinatesIn(BaseModel):
 
 NEW_RECORDS_THRESHOLD = 1000
 new_records_counter = 0
+def counter_load():
+    global new_records_counter
 
+    cnt_pth = Path('counter.txt').resolve()
+    if cnt_pth.exists():
+        try:
+            with open(cnt_pth, mode='r') as cnt_f:
+                cnt = int(cnt_f.read())
+
+            new_records_counter = cnt + 1
+
+            with open(cnt_pth, mode='w') as cnt_f:
+                cnt_f.write(str(new_records_counter))
+
+        except:
+            pass
+    else:
+        with open(cnt_pth, mode='w') as cnt_f:
+            cnt_f.write(str(new_records_counter))
+
+    return new_records_counter
 
 def check_and_retrain():
     global new_records_counter
-    new_records_counter += 1
+    new_records_counter = counter_load()
+
+
+
     if new_records_counter >= NEW_RECORDS_THRESHOLD:
         print("Достигнут порог новых данных. Запуск фонового переобучения...")
+
+        try:
+            cnt_pth = Path('counter.txt').resolve()
+            with open(cnt_pth, mode='w') as cnt_f:
+                cnt_f.write(str(0))
+        except:
+            pass
+
         success = retrain.retrain_pipeline()
         if success:
             # Перезагружаем модель в память приложения без перезапуска сервера
