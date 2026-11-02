@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -9,6 +9,8 @@ import os
 from databases import database
 from models.ml_model import *
 import data_fetcher
+
+import retrain
 
 app = FastAPI(title="Viticulture Predictor")
 templates = Jinja2Templates(directory="templates")
@@ -43,6 +45,23 @@ class CoordinatesIn(BaseModel):
 
 
 
+NEW_RECORDS_THRESHOLD = 1000
+new_records_counter = 0
+
+
+def check_and_retrain():
+    global new_records_counter
+    new_records_counter += 1
+    if new_records_counter >= NEW_RECORDS_THRESHOLD:
+        print("Достигнут порог новых данных. Запуск фонового переобучения...")
+        success = retrain.retrain_pipeline()
+        if success:
+            # Перезагружаем модель в память приложения без перезапуска сервера
+            variety_model.load_model()
+        new_records_counter = 0
+
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def map_page(request: Request):
@@ -61,7 +80,10 @@ def get_vineyards(db: Session = Depends(database.get_db)):
 
 
 @app.post("/api/predict")
-def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
+def predict_suitability(coords: CoordinatesIn,
+                        background_tasks: BackgroundTasks,
+                        db: Session = Depends(database.get_db),
+                        ):
     if suit_class is None:
         raise HTTPException(
             status_code=503,
@@ -138,6 +160,8 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
     )
     db.add(new_record)
     db.commit()
+
+    background_tasks.add_task(check_and_retrain)
 
     return {
         "suitable": is_suitable,
