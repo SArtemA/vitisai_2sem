@@ -1,7 +1,8 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean, text, inspect
-from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, create_engine, inspect, text
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Place the database file relative to this module
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,6 @@ class VineyardFeature(Base):
     soil_ph = Column(Float)
     soil_organic_carbon = Column(Float)
     fire_risk = Column(Float)
-
 
     is_suitable = Column(Boolean, default=True)
     # --- New GEE Parameters (Expanded) ---

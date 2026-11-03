@@ -1,12 +1,13 @@
 import os
-import sys
 import sqlite3
-import pandas as pd
+import sys
+
 import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.multioutput import MultiOutputClassifier
+import pandas as pd
 from sklearn.metrics import f1_score
+from sklearn.model_selection import train_test_split
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -15,14 +16,40 @@ DB_PATH = os.path.join("databases", "grapes_annotated_v2.db")
 MODEL_DIR = os.path.join("models", "trained_models")
 
 FEATURE_COLUMNS = [
-    'elevation', 'slope', 'aspect', 'hillshade', 'mid_year_temp', 'precipitation', 'ndvi', 'ndwi',
-    'solar_radiation', 'humidity', 'wind_speed', 'evapotranspiration', 'evi', 'lai', 'land_cover_type',
-    'soil_ph', 'soil_organic_carbon', 'fire_risk', 'winkler_index', 'fpar', 'surface_pressure',
-    'potential_evaporation_sum', 'surface_sensible_heat_flux_sum', 'volumetric_soil_water_layer_3',
-    'skin_reservoir_content', 'soil_temperature_level_3', 'skin_temperature', 'soil_bulk_density',
-    'soil_sand', 'soil_clay', 'soil_texture_class'
+    "elevation",
+    "slope",
+    "aspect",
+    "hillshade",
+    "mid_year_temp",
+    "precipitation",
+    "ndvi",
+    "ndwi",
+    "solar_radiation",
+    "humidity",
+    "wind_speed",
+    "evapotranspiration",
+    "evi",
+    "lai",
+    "land_cover_type",
+    "soil_ph",
+    "soil_organic_carbon",
+    "fire_risk",
+    "winkler_index",
+    "fpar",
+    "surface_pressure",
+    "potential_evaporation_sum",
+    "surface_sensible_heat_flux_sum",
+    "volumetric_soil_water_layer_3",
+    "skin_reservoir_content",
+    "soil_temperature_level_3",
+    "skin_temperature",
+    "soil_bulk_density",
+    "soil_sand",
+    "soil_clay",
+    "soil_texture_class",
 ]
-MUL_TARGET = ['arnsburger', 'arinto', 'mostosa', 'abbuoto', 'abouriou', 'acitana']
+MUL_TARGET = ["arnsburger", "arinto", "mostosa", "abbuoto", "abouriou", "acitana"]
+
 
 def retrain_pipeline():
     if not os.path.exists(DB_PATH):
@@ -42,8 +69,8 @@ def retrain_pipeline():
     # excluded = set(FEATURE_COLUMNS + ['id', 'lat', 'lon'])
     target_columns = MUL_TARGET
 
-    X = df[FEATURE_COLUMNS].apply(pd.to_numeric, errors='coerce').fillna(0)
-    y = df[target_columns].apply(pd.to_numeric, errors='coerce').fillna(0)
+    X = df[FEATURE_COLUMNS].apply(pd.to_numeric, errors="coerce").fillna(0)
+    y = df[target_columns].apply(pd.to_numeric, errors="coerce").fillna(0)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -55,28 +82,26 @@ def retrain_pipeline():
     # 2. Обучение новой модели
     print("Обучение новой модели XGBoost...")
     base_model = XGBClassifier(
-
-        colsample_bytree = 0.7,
-        gamma = 0.2,
-        learning_rate = 0.1,
-        max_depth = 3,
-        n_estimators = 300,
-        reg_alpha = 0.001,
-        reg_lambda = 1,
-        subsample = 0.7,
-
+        colsample_bytree=0.7,
+        gamma=0.2,
+        learning_rate=0.1,
+        max_depth=3,
+        n_estimators=300,
+        reg_alpha=0.001,
+        reg_lambda=1,
+        subsample=0.7,
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
     )
     new_model = MultiOutputClassifier(base_model, n_jobs=-1)
     new_model.fit(X_train_scaled, y_train)
 
     # 3. Оценка качества новой модели
-    y_pred_new = (new_model.predict_proba(X_test_scaled) > 0.5).astype(int)
     # y_pred_proba возвращает список массивов по выходам:
     import numpy as np
+
     y_pred_probs = np.array([prob[:, 1] for prob in new_model.predict_proba(X_test_scaled)]).T
-    new_f1 = f1_score(y_test, (y_pred_probs > 0.5).astype(int), average='micro')
+    new_f1 = f1_score(y_test, (y_pred_probs > 0.5).astype(int), average="micro")
     print(f"Новая модель: Micro F1-score = {new_f1:.4f}")
 
     # 4. Проверка качества старой модели (Gatekeeper)
@@ -89,7 +114,7 @@ def retrain_pipeline():
             old_scaler = joblib.load(old_scaler_path)
             X_test_old_scaled = old_scaler.transform(X_test)
             old_probs = np.array([prob[:, 1] for prob in old_model.predict_proba(X_test_old_scaled)]).T
-            old_f1 = f1_score(y_test, (old_probs > 0.5).astype(int), average='micro')
+            old_f1 = f1_score(y_test, (old_probs > 0.5).astype(int), average="micro")
             print(f"Текущая модель: Micro F1-score = {old_f1:.4f}")
 
             if new_f1 < old_f1:

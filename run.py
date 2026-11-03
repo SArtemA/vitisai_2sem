@@ -1,23 +1,19 @@
-import shutil
-from pathlib import Path
-import uvicorn
-import webbrowser
+import multiprocessing
 import threading
 import time
-import os
-import sys
-import json
-import multiprocessing
-from main import app  # IMPORTANT: Import the app directly instead of using a string
 import warnings
+import webbrowser
 
-warnings.filterwarnings('ignore')
+import uvicorn
+
+from main import app  # IMPORTANT: Import the app directly instead of using a string
+
+warnings.filterwarnings("ignore")
 
 
-_HOST = '127.0.0.1'
+_HOST = "127.0.0.1"
 _PORT = 8000
-_LINK = f'http://{_HOST}:{_PORT}'
-
+_LINK = f"http://{_HOST}:{_PORT}"
 
 
 def open_browser():
@@ -38,9 +34,9 @@ if __name__ == "__main__":
         uvicorn.run(app, host=_HOST, port=_PORT)
 
     except Exception as run_e:
-        print('run_e', run_e)
+        print("run_e", run_e)
     finally:
-        print('finally some rest')
+        print("finally some rest")
         # try:
         #     shutil.rmtree(Path('tmp'), ignore_errors=True)
 

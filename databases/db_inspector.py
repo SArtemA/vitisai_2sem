@@ -1,15 +1,13 @@
-import sys
 import os
-import sqlite3
-import pandas as pd
-from sqlalchemy import create_engine, inspect
+import sys
+
+from sqlalchemy import inspect
 from sqlalchemy.orm import sessionmaker
 
 # Ensure the project root directory is on the system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from databases.database import Base, engine, VineyardFeature
-
+from databases.database import VineyardFeature, engine  # noqa: E402
 
 
 def print_db_structure():
@@ -27,10 +25,10 @@ def print_db_structure():
 
         columns = inspector.get_columns(table_name)
         for column in columns:
-            col_name = column['name']
-            col_type = column['type']
-            col_nullable = "NULL" if column['nullable'] else "NOT NULL"
-            col_default = f"DEFAULT {column['default']}" if column['default'] else ""
+            col_name = column["name"]
+            col_type = column["type"]
+            col_nullable = "NULL" if column["nullable"] else "NOT NULL"
+            col_default = f"DEFAULT {column['default']}" if column["default"] else ""
 
             print(f"  {col_name}: {col_type} {col_nullable} {col_default}")
         print()
@@ -86,7 +84,7 @@ def print_db_stats():
         total_count = db.query(VineyardFeature).count()
         print(f"Total records: {total_count}")
 
-        suitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable == True).count()
+        suitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable.is_(True)).count()
         unsuitable_count = total_count - suitable_count
         print(f"Suitable: {suitable_count}")
         print(f"Unsuitable: {unsuitable_count}")
@@ -109,16 +107,13 @@ def count_suitable_unsuitable():
     db = SessionLocal()
 
     try:
-        suitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable == True).count()
-        unsuitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable == False).count()
+        suitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable.is_(True)).count()
+        unsuitable_count = db.query(VineyardFeature).filter(VineyardFeature.is_suitable.is_(False)).count()
 
         print(f"Подходящие участки (is_suitable=True): {suitable_count}")
         print(f"Неподходящие участки (is_suitable=False): {unsuitable_count}")
 
-        return {
-            "suitable": suitable_count,
-            "unsuitable": unsuitable_count
-        }
+        return {"suitable": suitable_count, "unsuitable": unsuitable_count}
     except Exception as e:
         print(f"Ошибка при подсчёте: {e}")
         return None

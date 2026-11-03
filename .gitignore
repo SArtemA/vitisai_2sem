@@ -34,8 +34,11 @@
 
 # basic
 .venv
+venv
+venv/
 __pycache__
 */__pycache__
+counter.txt
 
 #db
 vineyards_*
