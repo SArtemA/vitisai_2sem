@@ -21,6 +21,7 @@
 - [Структура проекта](#структура-проекта)
 - [Описание основных файлов](#описание-основных-файлов)
 - [Установка и запуск](#установка-и-запуск)
+- [Качество кода: линтеры, форматтеры, pre-commit](#качество-кода-линтеры-форматтеры-pre-commit)
 - [Настройка Google Earth Engine](#настройка-google-earth-engine)
 - [API](#api)
 - [База данных](#база-данных)
@@ -166,11 +167,15 @@ FastAPI backend
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── pytest.yml          # CI: isort + black + flake8 + pytest + проверка Docker-сборки
+│
 ├── databases/
 │   ├── __init__.py
 │   ├── database.py
 │   ├── db_inspector.py
-│   └── vineyards_v3.db
+│   └── vineyards_v3.db         # создаётся автоматически, в git не хранится
 │
 ├── models/
 │   └── ml_model.py
@@ -182,12 +187,21 @@ FastAPI backend
 │
 ├── data_fetcher.py
 ├── main.py
-├── requirements.txt
+├── retrain.py                  # пайплайн переобучения модели рекомендаций
 ├── run.py
+├── tests_.py                   # тесты pytest
+│
+├── pyproject.toml              # зависимости (Poetry) + конфиги black/isort
+├── poetry.lock                 # зафиксированные версии зависимостей
+├── requirements.txt            # те же зависимости для Docker/CI
+├── .pre-commit-config.yaml     # хуки: isort, black, flake8
+├── .flake8                     # конфиг линтера
+├── Dockerfile
+├── docker-compose.yml
 └── .gitignore
 ```
 
-> Примечание: обученные модели должны находиться в подпапках внутри `models/`, если они были сгенерированы локально.
+> Примечание: обученные модели должны находиться в подпапках внутри `models/`, если они были сгенерированы локально. Виртуальное окружение (`.venv`, `venv`), базы данных и артефакты моделей в репозиторий не коммитятся — они перечислены в `.gitignore`.
 
 ---
 
@@ -358,28 +372,40 @@ Multi-label модель, которая формирует рейтинг по�
 
 ---
 
-### `requirements.txt`
+### Зависимости: `pyproject.toml`, `poetry.lock`, `requirements.txt`
 
-Файл зависимостей проекта.
+Основной источник зависимостей — `pyproject.toml` (Poetry). В `poetry.lock` зафиксированы точные версии всех пакетов для воспроизводимой установки:
 
-Позволяет установить все основные библиотеки одной командой:
+```bash
+poetry install
+```
+
+Dev-зависимости (pytest, flake8, black, isort, pre-commit) вынесены в отдельную группу и ставятся вместе с проектом.
+
+`requirements.txt` дублирует основные зависимости и используется Dockerfile'ом и CI:
 
 ```bash
 pip install -r requirements.txt
 ```
 
+При добавлении новой библиотеки: сначала `poetry add <пакет>`, затем синхронизировать `requirements.txt`.
+
 ---
 
 ## Установка и запуск
 
-### 1. Клонирование репозитория
+Зависимости проекта управляются через **Poetry** (`pyproject.toml` + `poetry.lock`). Альтернативно можно использовать `pip` + `requirements.txt` (этот файл используется также в Docker и CI).
+
+### Вариант A. Через Poetry (рекомендуется)
+
+#### 1. Клонирование репозитория
 
 ```bash
 git clone https://github.com/SArtemA/vitisai_2sem.git
 cd vitisai_2sem
 ```
 
-### 2. Переключение на ветку `ML_extended`
+#### 2. Переключение на ветку `ML_extended`
 
 ```bash
 git checkout ML_extended
@@ -392,13 +418,49 @@ git fetch origin
 git checkout ML_extended
 ```
 
-### 3. Создание виртуального окружения
+#### 3. Установка зависимостей
+
+Poetry сам создаст виртуальное окружение и поставит зафиксированные в `poetry.lock` версии:
+
+```bash
+poetry install
+```
+
+Если Poetry не установлен:
+
+```bash
+pip install poetry
+```
+
+#### 4. Установка pre-commit хуков
+
+```bash
+poetry run pre-commit install
+```
+
+После этого перед каждым коммитом автоматически запускаются isort, black и flake8 (см. раздел «Качество кода»).
+
+#### 5. Запуск приложения
+
+```bash
+poetry run python run.py
+```
+
+### Вариант B. Через pip + venv
+
+#### 1–2. Клонирование и переключение на ветку
+
+Аналогично варианту A.
+
+#### 3. Создание виртуального окружения
 
 ```bash
 python -m venv venv
 ```
 
-### 4. Активация виртуального окружения
+> Каталоги `venv` и `.venv` добавлены в `.gitignore` — окружение не попадёт в репозиторий.
+
+#### 4. Активация виртуального окружения
 
 Для Windows:
 
@@ -412,19 +474,19 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 5. Установка зависимостей
+#### 5. Установка зависимостей
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Если установка через `requirements.txt` не сработала, можно установить основные зависимости вручную:
+#### 6. Установка pre-commit хуков
 
 ```bash
-pip install fastapi uvicorn sqlalchemy pydantic pandas numpy scikit-learn xgboost joblib earthengine-api requests
+pre-commit install
 ```
 
-### 6. Запуск приложения
+### Запуск приложения
 
 ```bash
 python run.py
@@ -437,6 +499,64 @@ http://127.0.0.1:8000
 ```
 
 При запуске через `run.py` браузер должен открыться автоматически.
+
+### Запуск через Docker
+
+```bash
+docker compose up --build
+```
+
+Приложение будет доступно по адресу `http://127.0.0.1:8000`. Базы данных и артефакты моделей монтируются из локальных папок `databases/` и `models/`.
+
+---
+
+## Качество кода: линтеры, форматтеры, pre-commit
+
+В проекте настроены инструменты поддержания качества кода:
+
+| Инструмент | Роль | Конфиг |
+|---|---|---|
+| **black** | автоформатирование кода | `pyproject.toml` (`[tool.black]`, line-length 120) |
+| **isort** | сортировка импортов | `pyproject.toml` (`[tool.isort]`, профиль black) |
+| **flake8** | линтер | `.flake8` (max-line-length 120, max-complexity 15) |
+| **pre-commit** | запуск всего вышеперечисленного перед коммитом | `.pre-commit-config.yaml` |
+| **pytest** | тесты | `tests_.py` |
+
+### Pre-commit
+
+Установка хуков (один раз после клонирования):
+
+```bash
+pre-commit install
+```
+
+Ручной запуск по всем файлам:
+
+```bash
+pre-commit run --all-files
+```
+
+Если хук нашёл проблему, коммит блокируется. black и isort исправляют файлы автоматически — достаточно повторить `git add` и коммит. Замечания flake8 нужно исправить вручную.
+
+### Запуск проверок вручную
+
+```bash
+isort . --check-only --diff
+black . --check --diff
+flake8 . --count --statistics
+pytest tests_.py -v
+```
+
+### CI (GitHub Actions)
+
+Workflow `.github/workflows/pytest.yml` запускается при push в `main` и `ML_extended`, а также при pull request в `main`/`master`:
+
+1. проверка сортировки импортов (isort);
+2. проверка форматирования (black);
+3. критические ошибки flake8 (E9, F63, F7, F82) — блокируют сборку;
+4. стилевые предупреждения flake8 — не блокируют сборку;
+5. тесты pytest;
+6. проверка сборки Docker-образа.
 
 ---
 
@@ -1056,14 +1176,12 @@ cd vitisai_2sem
 
 git checkout ML_extended
 
-python -m venv venv
-venv\Scripts\activate
+poetry install
+poetry run pre-commit install
 
-pip install -r requirements.txt
+poetry run earthengine authenticate
 
-earthengine authenticate
-
-python run.py
+poetry run python run.py
 ```
 
 После запуска:
@@ -1074,18 +1192,17 @@ http://127.0.0.1:8000
 
 ---
 
-## Автор
+## Авторы
 
-
-**Так же не забыть бы доьавить имена и ссылки**
-
-GitHub: [https://github.com/SArtemA](https://github.com/SArtemA)
+- Бакилин Михаил Андреевич
+- Елькин Лев Олегович
+- Саттаров Артём Альбертович — GitHub: [https://github.com/SArtemA](https://github.com/SArtemA)
+- Хакимзянов Илья Эдуардович
 
 ---
 
 ## Лицензия
 
-А НУЖНА ЛИ???????
 Лицензия в репозитории не указана.
 
 Перед использованием проекта в коммерческих или публичных целях рекомендуется добавить файл `LICENSE`.
