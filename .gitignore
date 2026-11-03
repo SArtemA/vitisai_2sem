@@ -32,3 +32,16 @@
 /databases/grapes_annotated_v2.db
 /databases/grapes_annotated_v2.db
 
+# basic
+.venv
+venv
+venv/
+__pycache__
+*/__pycache__
+counter.txt
+
+#db
+vineyards_*
+
+#датасет, локально работаю
+datasets/*

@@ -1,20 +1,22 @@
-from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.templating import Jinja2Templates
+from pathlib import Path
+
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
-import os
 
-from databases import database
-from models.ml_model import *
 import data_fetcher
+import retrain
+from databases import database
+from models.ml_model import BinSuitClassifier, MultiGrapeXGBClassifier
 
 app = FastAPI(title="Viticulture Predictor")
 templates = Jinja2Templates(directory="templates")
 
 variety_model = None
 suit_class = None
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -32,7 +34,7 @@ async def startup_event():
     try:
         variety_model = MultiGrapeXGBClassifier()
     except Exception as var_m_e:
-        print('Ошибка при загрузке модели:', var_m_e)
+        print("Ошибка при загрузке модели:", var_m_e)
         print("ПРЕДУПРЕЖДЕНИЕ: Модель не найдена. Рекомендации будут недоступны.")
 
 
@@ -41,7 +43,52 @@ class CoordinatesIn(BaseModel):
     lon: float
 
 
+NEW_RECORDS_THRESHOLD = 1000
+new_records_counter = 0
 
+
+def counter_load():
+    global new_records_counter
+
+    cnt_pth = Path("counter.txt").resolve()
+    if cnt_pth.exists():
+        try:
+            with open(cnt_pth, mode="r") as cnt_f:
+                cnt = int(cnt_f.read())
+
+            new_records_counter = cnt + 1
+
+            with open(cnt_pth, mode="w") as cnt_f:
+                cnt_f.write(str(new_records_counter))
+
+        except Exception:
+            pass
+    else:
+        with open(cnt_pth, mode="w") as cnt_f:
+            cnt_f.write(str(new_records_counter))
+
+    return new_records_counter
+
+
+def check_and_retrain():
+    global new_records_counter
+    new_records_counter = counter_load()
+
+    if new_records_counter >= NEW_RECORDS_THRESHOLD:
+        print("Достигнут порог новых данных. Запуск фонового переобучения...")
+
+        try:
+            cnt_pth = Path("counter.txt").resolve()
+            with open(cnt_pth, mode="w") as cnt_f:
+                cnt_f.write(str(0))
+        except Exception:
+            pass
+
+        success = retrain.retrain_pipeline()
+        if success:
+            # Перезагружаем модель в память приложения без перезапуска сервера
+            variety_model.load_model()
+        new_records_counter = 0
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -61,11 +108,14 @@ def get_vineyards(db: Session = Depends(database.get_db)):
 
 
 @app.post("/api/predict")
-def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.get_db)):
+def predict_suitability(
+    coords: CoordinatesIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(database.get_db),
+):
     if suit_class is None:
         raise HTTPException(
-            status_code=503,
-            detail="Модель не обучена или не найдена. Запустите pipeline_vitis.py для обучения."
+            status_code=503, detail="Модель не обучена или не найдена. Запустите pipeline_vitis.py для обучения."
         )
 
     try:
@@ -81,7 +131,7 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
 
     recommendations = []
     try:
-        print('recommendations')
+        print("recommendations")
         if is_suitable:
             # print("Land is suitable. Calculating variety rankings...")
             try:
@@ -89,13 +139,13 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
                     recommendations = variety_model.predict(env_data)
                     # print(recommendations)
                 else:
-                    print('Не удалось получить рекомендации')
+                    print("Не удалось получить рекомендации")
             except Exception as recommendations_e:
-                print('recommendations_e',recommendations_e)
+                print("recommendations_e", recommendations_e)
         else:
             print("Land is unsuitable. Skipping variety analysis.")
     except Exception as g_recommend_e:
-        print('g_recommend_e', g_recommend_e)
+        print("g_recommend_e", g_recommend_e)
 
     new_record = database.VineyardFeature(
         lat=coords.lat,
@@ -134,13 +184,11 @@ def predict_suitability(coords: CoordinatesIn, db: Session = Depends(database.ge
         soil_bulk_density=env_data.get("soil_bulk_density"),
         soil_sand=env_data.get("soil_sand"),
         soil_clay=env_data.get("soil_clay"),
-        soil_texture_class=env_data.get("soil_texture_class")
+        soil_texture_class=env_data.get("soil_texture_class"),
     )
     db.add(new_record)
     db.commit()
 
-    return {
-        "suitable": is_suitable,
-        "data_collected": env_data,
-        "recommendations": recommendations
-    }
+    background_tasks.add_task(check_and_retrain)
+
+    return {"suitable": is_suitable, "data_collected": env_data, "recommendations": recommendations}
