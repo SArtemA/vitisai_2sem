@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_VitiPredict_Retrain" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.31.1">
+  <bpmn:collaboration id="Collaboration_VitiPredict">
+    <bpmn:participant id="Participant_MLOps" name="VitiPredict ML: Пайплайн автопереобучения и смены моделей" processRef="Process_Retraining_Cycle" />
+    <bpmn:textAnnotation id="TextAnnotation_1vgqeq2">
+      <bpmn:text>Агроном или ML-инженер</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Association_1ujfo8w" associationDirection="None" sourceRef="Task_HITL_Review" targetRef="TextAnnotation_1vgqeq2" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Retraining_Cycle" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_MLOps">
+      <bpmn:lane id="Lane_Automated" name="MLOps &#38; Backend (Автоматический контур)">
+        <bpmn:flowNodeRef>Start_DriftTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Start_VolumeTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Start_ManualTrigger</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Triggers</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CollectData</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Preprocess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TrainModels</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ValidateMetrics</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Val_Check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CompareModels</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Model_Compare</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DeployModel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyKeepOld</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifySuccess</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Deployed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_KeepOld</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Expert" name="Эксперт / ML-инженер (Human-in-the-Loop)">
+        <bpmn:flowNodeRef>Task_HITL_Review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HITL_Decision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_DriftTrigger" name="Детекция дрифта GEE (PSI &#62; 0.25)">
+      <bpmn:outgoing>Flow_T2</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_T1" sourceRef="Start_VolumeTrigger" targetRef="Gateway_Triggers" />
+    <bpmn:sequenceFlow id="Flow_T2" sourceRef="Start_DriftTrigger" targetRef="Gateway_Triggers" />
+    <bpmn:sequenceFlow id="Flow_T3" sourceRef="Start_ManualTrigger" targetRef="Gateway_Triggers" />
+    <bpmn:sequenceFlow id="Flow_To_Collect" sourceRef="Gateway_Triggers" targetRef="Task_CollectData" />
+    <bpmn:sequenceFlow id="Flow_To_Val" sourceRef="Task_TrainModels" targetRef="Task_ValidateMetrics" />
+    <bpmn:sequenceFlow id="Flow_To_ValGate" sourceRef="Task_ValidateMetrics" targetRef="Gateway_Val_Check" />
+    <bpmn:sequenceFlow id="Flow_Val_Pass" name="Да (F1 &#62;= 0.85)" sourceRef="Gateway_Val_Check" targetRef="Task_CompareModels" />
+    <bpmn:sequenceFlow id="Flow_Val_HITL" name="Пограничный F1 / Дрифт" sourceRef="Gateway_Val_Check" targetRef="Task_HITL_Review" />
+    <bpmn:sequenceFlow id="Flow_To_HITL_Decision" sourceRef="Task_HITL_Review" targetRef="Gateway_HITL_Decision" />
+    <bpmn:sequenceFlow id="Flow_HITL_Approve" name="Одобрено" sourceRef="Gateway_HITL_Decision" targetRef="Task_CompareModels" />
+    <bpmn:sequenceFlow id="Flow_HITL_Reject" name="Отклонено" sourceRef="Gateway_HITL_Decision" targetRef="Task_NotifyReject" />
+    <bpmn:sequenceFlow id="Flow_To_EndReject" sourceRef="Task_NotifyReject" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_To_CompareGate" sourceRef="Task_CompareModels" targetRef="Gateway_Model_Compare" />
+    <bpmn:sequenceFlow id="Flow_Model_Better" name="Да (ΔF1 &#62;= ε)" sourceRef="Gateway_Model_Compare" targetRef="Task_DeployModel" />
+    <bpmn:sequenceFlow id="Flow_Model_NotBetter" name="Нет (без улучшений)" sourceRef="Gateway_Model_Compare" targetRef="Task_NotifyKeepOld" />
+    <bpmn:sequenceFlow id="Flow_To_NotifySuccess" sourceRef="Task_DeployModel" targetRef="Task_NotifySuccess" />
+    <bpmn:sequenceFlow id="Flow_To_EndDeployed" sourceRef="Task_NotifySuccess" targetRef="End_Deployed" />
+    <bpmn:sequenceFlow id="Flow_To_EndKeepOld" sourceRef="Task_NotifyKeepOld" targetRef="End_KeepOld" />
+    <bpmn:startEvent id="Start_VolumeTrigger" name="Порог: +1000 записей в SQLite">
+      <bpmn:outgoing>Flow_T1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:startEvent id="Start_ManualTrigger" name="Ручной запуск">
+      <bpmn:outgoing>Flow_T3</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_Triggers" name="Слияние триггеров">
+      <bpmn:incoming>Flow_T1</bpmn:incoming>
+      <bpmn:incoming>Flow_T2</bpmn:incoming>
+      <bpmn:incoming>Flow_T3</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Collect</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_CollectData" name="Сбор данных и валидация статусов GEE">
+      <bpmn:incoming>Flow_To_Collect</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Preprocess</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Preprocess" name="Предобработка: фильтрация нулей, scaler">
+      <bpmn:incoming>Flow_To_Preprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Train</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_TrainModels" name="Обучение моделей XGBoost (BinSuit + MultiGrape)">
+      <bpmn:incoming>Flow_To_Train</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Val</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_To_Preprocess" sourceRef="Task_CollectData" targetRef="Task_Preprocess" />
+    <bpmn:sequenceFlow id="Flow_To_Train" sourceRef="Task_Preprocess" targetRef="Task_TrainModels" />
+    <bpmn:serviceTask id="Task_ValidateMetrics" name="Валидация: расчет F1, ROC-AUC">
+      <bpmn:incoming>Flow_To_Val</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_ValGate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Val_Check" name="F1 &#62;= 0.85 и нет деградации?">
+      <bpmn:incoming>Flow_To_ValGate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Val_Pass</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Val_HITL</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_HITL_Review" name="HITL: Экспертная валидация метрик">
+      <bpmn:incoming>Flow_Val_HITL</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_HITL_Decision</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_CompareModels" name="Сравнение моделей:&#10; New vs Old+δ">
+      <bpmn:incoming>Flow_Val_Pass</bpmn:incoming>
+      <bpmn:incoming>Flow_HITL_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_CompareGate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_HITL_Decision" name="Решение эксперта?">
+      <bpmn:incoming>Flow_To_HITL_Decision</bpmn:incoming>
+      <bpmn:outgoing>Flow_HITL_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HITL_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sendTask id="Task_NotifyReject" name="Notify: переобучение отклонено экспертом">
+      <bpmn:incoming>Flow_HITL_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_EndReject</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="End_Rejected" name="Пайплайн остановлен">
+      <bpmn:incoming>Flow_To_EndReject</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_Model_Compare" name="Новая модельF1 ≥ Текущая модель F1 + δ?">
+      <bpmn:incoming>Flow_To_CompareGate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Model_Better</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Model_NotBetter</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_DeployModel" name="6. Автодеплой: атомарная замена модел и reload в FastAPI">
+      <bpmn:incoming>Flow_Model_Better</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_NotifySuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="Task_NotifyKeepOld" name="Notify: сохранена текущая модель">
+      <bpmn:incoming>Flow_Model_NotBetter</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_EndKeepOld</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="Task_NotifySuccess" name="Notify:&#10;Отчет и метрики">
+      <bpmn:incoming>Flow_To_NotifySuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_EndDeployed</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="End_Deployed" name="Новая модель активна в проде">
+      <bpmn:incoming>Flow_To_EndDeployed</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_KeepOld" name="Сохранена текущая версия">
+      <bpmn:incoming>Flow_To_EndKeepOld</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_VitiPredict">
+      <bpmndi:BPMNShape id="Participant_MLOps_di" bpmnElement="Participant_MLOps" isHorizontal="true">
+        <dc:Bounds x="120" y="80" width="1620" height="520" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Expert_di" bpmnElement="Lane_Expert" isHorizontal="true">
+        <dc:Bounds x="150" y="390" width="1590" height="210" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Automated_di" bpmnElement="Lane_Automated" isHorizontal="true">
+        <dc:Bounds x="150" y="80" width="1590" height="310" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_DriftTrigger_di" bpmnElement="Start_DriftTrigger">
+        <dc:Bounds x="202" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="180" y="235" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_VolumeTrigger_di" bpmnElement="Start_VolumeTrigger">
+        <dc:Bounds x="202" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="180" y="145" width="85" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_ManualTrigger_di" bpmnElement="Start_ManualTrigger">
+        <dc:Bounds x="202" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="184" y="325" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_10bfdzw_di" bpmnElement="Gateway_Triggers" isMarkerVisible="true">
+        <dc:Bounds x="295" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="295" y="241" width="50" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09cekf5_di" bpmnElement="Task_CollectData">
+        <dc:Bounds x="370" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1dlo8u2_di" bpmnElement="Task_Preprocess">
+        <dc:Bounds x="500" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_01lu458_di" bpmnElement="Task_TrainModels">
+        <dc:Bounds x="630" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0137szy_di" bpmnElement="Task_ValidateMetrics">
+        <dc:Bounds x="755" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Val_Check_di" bpmnElement="Gateway_Val_Check" isMarkerVisible="true">
+        <dc:Bounds x="885" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="870" y="135" width="80" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_12wg39y_di" bpmnElement="Task_HITL_Review">
+        <dc:Bounds x="860" y="420" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09glpd3_di" bpmnElement="Task_CompareModels">
+        <dc:Bounds x="1040" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_HITL_Decision_di" bpmnElement="Gateway_HITL_Decision" isMarkerVisible="true">
+        <dc:Bounds x="1065" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012" y="426" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1pq62ca_di" bpmnElement="Task_NotifyReject">
+        <dc:Bounds x="1230" y="480" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected">
+        <dc:Bounds x="1392" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1378" y="545" width="65" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Model_Compare_di" bpmnElement="Gateway_Model_Compare" isMarkerVisible="true">
+        <dc:Bounds x="1195" y="185" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1152" y="141" width="135" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0k7msmv_di" bpmnElement="Task_DeployModel">
+        <dc:Bounds x="1390" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jp55d8_di" bpmnElement="Task_NotifyKeepOld">
+        <dc:Bounds x="1390" y="280" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_13p261r_di" bpmnElement="Task_NotifySuccess">
+        <dc:Bounds x="1520" y="170" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Deployed_di" bpmnElement="End_Deployed">
+        <dc:Bounds x="1652" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1631" y="235" width="79" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_KeepOld_di" bpmnElement="End_KeepOld">
+        <dc:Bounds x="1652" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1635" y="345" width="71" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_T1_di" bpmnElement="Flow_T1">
+        <di:waypoint x="238" y="120" />
+        <di:waypoint x="267" y="120" />
+        <di:waypoint x="267" y="210" />
+        <di:waypoint x="295" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T2_di" bpmnElement="Flow_T2">
+        <di:waypoint x="238" y="210" />
+        <di:waypoint x="295" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T3_di" bpmnElement="Flow_T3">
+        <di:waypoint x="238" y="300" />
+        <di:waypoint x="267" y="300" />
+        <di:waypoint x="267" y="210" />
+        <di:waypoint x="295" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Collect_di" bpmnElement="Flow_To_Collect">
+        <di:waypoint x="345" y="210" />
+        <di:waypoint x="370" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Val_di" bpmnElement="Flow_To_Val">
+        <di:waypoint x="730" y="210" />
+        <di:waypoint x="755" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_ValGate_di" bpmnElement="Flow_To_ValGate">
+        <di:waypoint x="855" y="210" />
+        <di:waypoint x="885" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Val_Pass_di" bpmnElement="Flow_Val_Pass">
+        <di:waypoint x="935" y="210" />
+        <di:waypoint x="1040" y="210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="940" y="192" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Val_HITL_di" bpmnElement="Flow_Val_HITL">
+        <di:waypoint x="910" y="235" />
+        <di:waypoint x="910" y="420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="910" y="241" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_HITL_Decision_di" bpmnElement="Flow_To_HITL_Decision">
+        <di:waypoint x="960" y="460" />
+        <di:waypoint x="1065" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HITL_Approve_di" bpmnElement="Flow_HITL_Approve">
+        <di:waypoint x="1090" y="435" />
+        <di:waypoint x="1090" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1094" y="403" width="52" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HITL_Reject_di" bpmnElement="Flow_HITL_Reject">
+        <di:waypoint x="1090" y="485" />
+        <di:waypoint x="1090" y="520" />
+        <di:waypoint x="1230" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1101" y="503" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_EndReject_di" bpmnElement="Flow_To_EndReject">
+        <di:waypoint x="1330" y="520" />
+        <di:waypoint x="1392" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_CompareGate_di" bpmnElement="Flow_To_CompareGate">
+        <di:waypoint x="1140" y="210" />
+        <di:waypoint x="1195" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Model_Better_di" bpmnElement="Flow_Model_Better">
+        <di:waypoint x="1245" y="210" />
+        <di:waypoint x="1390" y="210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1245" y="192" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Model_NotBetter_di" bpmnElement="Flow_Model_NotBetter">
+        <di:waypoint x="1220" y="235" />
+        <di:waypoint x="1220" y="320" />
+        <di:waypoint x="1390" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1218" y="303" width="124" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_NotifySuccess_di" bpmnElement="Flow_To_NotifySuccess">
+        <di:waypoint x="1490" y="210" />
+        <di:waypoint x="1520" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_EndDeployed_di" bpmnElement="Flow_To_EndDeployed">
+        <di:waypoint x="1620" y="210" />
+        <di:waypoint x="1652" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_EndKeepOld_di" bpmnElement="Flow_To_EndKeepOld">
+        <di:waypoint x="1490" y="320" />
+        <di:waypoint x="1652" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Preprocess_di" bpmnElement="Flow_To_Preprocess">
+        <di:waypoint x="470" y="210" />
+        <di:waypoint x="500" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Train_di" bpmnElement="Flow_To_Train">
+        <di:waypoint x="600" y="210" />
+        <di:waypoint x="630" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1ujfo8w_di" bpmnElement="Association_1ujfo8w">
+        <di:waypoint x="910" y="500" />
+        <di:waypoint x="910" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="TextAnnotation_1vgqeq2_di" bpmnElement="TextAnnotation_1vgqeq2">
+        <dc:Bounds x="860" y="530" width="104" height="43" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
