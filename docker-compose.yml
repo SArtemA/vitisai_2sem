@@ -9,9 +9,6 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-      - RETRAIN_NOTIFY_AFTER_FAILURES=${RETRAIN_NOTIFY_AFTER_FAILURES:-4}
     volumes:
       # Mounts host directory to container so SQLite databases are persistent
       - ./databases:/pm_2_sem/databases

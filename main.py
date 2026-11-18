@@ -1,5 +1,4 @@
 from pathlib import Path
-import threading
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -9,7 +8,6 @@ from sqlalchemy.orm import Session
 
 import data_fetcher
 import retrain
-import notifications
 from databases import database
 from models.ml_model import BinSuitClassifier, MultiGrapeXGBClassifier
 
@@ -47,64 +45,50 @@ class CoordinatesIn(BaseModel):
 
 NEW_RECORDS_THRESHOLD = 1000
 new_records_counter = 0
-_retraining_lock = threading.Lock()
-COUNTER_PATH = Path(__file__).resolve().parent / "databases" / "counter.txt"
 
 
 def counter_load():
-    """Increase and persist the number of records collected since last retraining."""
     global new_records_counter
-    try:
-        current = int(COUNTER_PATH.read_text(encoding="utf-8").strip() or "0")
-    except (OSError, ValueError):
-        current = 0
-    new_records_counter = current + 1
-    temporary = COUNTER_PATH.with_suffix(".txt.tmp")
-    temporary.write_text(str(new_records_counter), encoding="utf-8")
-    temporary.replace(COUNTER_PATH)
+
+    cnt_pth = Path("counter.txt").resolve()
+    if cnt_pth.exists():
+        try:
+            with open(cnt_pth, mode="r") as cnt_f:
+                cnt = int(cnt_f.read())
+
+            new_records_counter = cnt + 1
+
+            with open(cnt_pth, mode="w") as cnt_f:
+                cnt_f.write(str(new_records_counter))
+
+        except Exception:
+            pass
+    else:
+        with open(cnt_pth, mode="w") as cnt_f:
+            cnt_f.write(str(new_records_counter))
+
     return new_records_counter
 
 
 def check_and_retrain():
-    """Run one retraining job at a time and report its outcome to the developer."""
     global new_records_counter
-    with _retraining_lock:
-        retraining_started = False
+    new_records_counter = counter_load()
+
+    if new_records_counter >= NEW_RECORDS_THRESHOLD:
+        print("Достигнут порог новых данных. Запуск фонового переобучения...")
+
         try:
-            new_records_counter = counter_load()
-            if new_records_counter < NEW_RECORDS_THRESHOLD:
-                return
+            cnt_pth = Path("counter.txt").resolve()
+            with open(cnt_pth, mode="w") as cnt_f:
+                cnt_f.write(str(0))
+        except Exception:
+            pass
 
-            retraining_started = True
-            print("Достигнут порог новых данных. Запуск фонового переобучения...")
-            result = retrain.retrain_pipeline()
-
-            if result.get("status") == "success":
-                try:
-                    if variety_model is None:
-                        raise RuntimeError("Экземпляр MultiGrapeXGBClassifier не инициализирован.")
-                    variety_model.load_model()
-                except Exception as reload_error:
-                    # The artifacts were saved, but the running process could not reload them.
-                    result = {
-                        "status": "error",
-                        "message": f"Модель сохранена, но не удалось загрузить её в приложение: {reload_error}",
-                    }
-
-            notifications.process_retraining_result(result)
-            print(f"Результат переобучения: {result}")
-        except Exception as exc:
-            error_result = {"status": "error", "message": f"{type(exc).__name__}: {exc}"}
-            notifications.process_retraining_result(error_result)
-            print(f"Ошибка фонового переобучения: {exc}")
-        finally:
-            if retraining_started:
-                # The current dataset was already considered by this training attempt.
-                # New requests will start accumulating from zero for the next cycle.
-                new_records_counter = 0
-                temporary = COUNTER_PATH.with_suffix(".txt.tmp")
-                temporary.write_text("0", encoding="utf-8")
-                temporary.replace(COUNTER_PATH)
+        success = retrain.retrain_pipeline()
+        if success:
+            # Перезагружаем модель в память приложения без перезапуска сервера
+            variety_model.load_model()
+        new_records_counter = 0
 
 
 @app.get("/", response_class=HTMLResponse)
