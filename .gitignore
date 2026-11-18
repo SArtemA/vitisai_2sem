@@ -45,3 +45,8 @@ vineyards_*
 
 #датасет, локально работаю
 datasets/*
+
+# Secrets and runtime state
+.env
+/databases/counter.txt
+/databases/retraining_state.json
